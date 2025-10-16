@@ -1,7 +1,6 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
-
 void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) {
     ( void ) pcTaskName;
     ( void ) pxTask;

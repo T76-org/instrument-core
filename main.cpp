@@ -1,3 +1,10 @@
+/**
+ * @file main.cpp
+ * @brief Main application entry point file
+ * @copyright Copyright (c) 2025 MTA, Inc.
+ * 
+ */
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "pico/cyw43_arch.h"
