@@ -20,3 +20,12 @@ It provides these features:
 - Safety features
   - Extensive unit testing harness built into the codebase
   - Last-ditch exception manager that puts the instrument in safe mode on crash and halt
+
+## FreeRTOS and multitasking support
+
+The IC uses FreeRTOS to manage all non-critical tasks. FreeRTOS is configured to run in single-core mode on core 0, and takes care of all memory management.
+
+Core 1 is reserved for bare-metal critical tasks that have strict timing and priority requirements.
+
+TODO: expand this section once we have more information on memory management and core0/core1 interaction.
+
