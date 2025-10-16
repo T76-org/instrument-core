@@ -28,6 +28,9 @@ set(PICO_BOARD pico2_w CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
+# Pull in FreeRTOS Kernel (must be before project)
+include(FreeRTOS_Kernel_import.cmake)
+
 project(t76-instrument-core C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
@@ -35,7 +38,10 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(t76-instrument-core main.cpp )
+add_executable(t76-instrument-core 
+        main.cpp 
+        freertos/rp2350.c
+)
 
 pico_set_program_name(t76-instrument-core "t76-instrument-core")
 pico_set_program_version(t76-instrument-core "0.1")
@@ -52,10 +58,13 @@ target_link_libraries(t76-instrument-core
 # Add the standard include files to the build
 target_include_directories(t76-instrument-core PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/freertos
 )
 
 # Add any user requested libraries
 target_link_libraries(t76-instrument-core 
+        FreeRTOS-Kernel
+        FreeRTOS-Kernel-Heap4
         pico_cyw43_arch_none
         pico_status_led
 )
