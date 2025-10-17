@@ -6,6 +6,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Disable malloc/free overrides so that we can provide our own
+set(SKIP_PICO_MALLOC 1)
+
 # Initialise pico_sdk from installed location
 # (note this can come from environment, CMake cache etc)
 
@@ -38,9 +41,19 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
+# Include all library source files
+file(GLOB app_sources
+    "lib/**/*.c*"
+)
+
 add_executable(t76-instrument-core 
-        main.cpp 
+        main.cpp
         freertos/rp2350.c
+        ${app_sources}
+)
+
+add_compile_definitions(
+    PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1 # Disable new/delete overrides so that we can provide our own.
 )
 
 pico_set_program_name(t76-instrument-core "t76-instrument-core")

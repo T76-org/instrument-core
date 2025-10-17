@@ -5,14 +5,20 @@
  * 
  */
 
+#define T76_USE_GLOBAL_LOCKS
+
 #include <stdio.h>
-#include "pico/stdlib.h"
-#include "pico/cyw43_arch.h"
-#include "pico/status_led.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "tusb.h"
-#include "pico/multicore.h"
+#include <cstdlib>
+
+#include <FreeRTOS.h>
+#include <task.h>
+#include <tusb.h>
+
+#include <pico/cyw43_arch.h>
+#include <pico/multicore.h>
+#include <pico/status_led.h>
+
+#include <lib/sys/memory.hpp>
 
 /**
  * @brief Task to handle TinyUSB events. This will run on core 0 because it is
@@ -43,8 +49,11 @@ void printTask(void *params) {
     int count = 0;
 
     while (true) {
-        printf("Hello from core %d! Count: %d\n", get_core_num(), count++);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        char *ptr = new char[320];
+        snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
+        fputs(ptr, stdout);
+        delete[] ptr;
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -57,8 +66,12 @@ void core1Task() {
     int count = 0;
 
     while (true) {
-        printf("Hello from core %d! Count: %d\n", get_core_num(), count++);
-        sleep_ms(1000);
+        char *ptr = static_cast<char*>(malloc(320));
+        snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
+        fputs(ptr, stdout);
+        free(ptr);
+        status_led_set_state(!status_led_get_state());
+        sleep_ms(100);
     }
 }
 
@@ -68,6 +81,9 @@ void core1Task() {
  * @return int Exit code (not used)
  */
 int main() {
+    // Initialize memory management system
+    T76::Sys::Memory::memoryInit();
+
     // Initialize stdio and status LED
     stdio_init_all();
     status_led_init();
