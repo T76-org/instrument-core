@@ -39,6 +39,7 @@
 
 #pragma once
 
+#define T76_USE_GLOBAL_LOCKS 1
 
 namespace T76::Sys::Memory {
     

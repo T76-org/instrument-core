@@ -10,7 +10,6 @@
 #include <pico/sync.h>
 #include <hardware/sync.h>
 
-#define T76_USE_GLOBAL_LOCKS 1
 #define T76_MEMORY_SPINLOCK_NUM 0
 
 #if T76_USE_GLOBAL_LOCKS
