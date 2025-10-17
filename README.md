@@ -48,3 +48,8 @@ However, since FreeRTOS is only running on core 0, special care must be taken wh
   - This mode allows core 1 to safely allocate and free memory, albeit with some performance overhead due to inter-core communication.
   - This mode is suitable for applications where core 1 needs to perform dynamic memory allocation.
 
+### Configuration
+
+The memory management system can be configured by defining the `T76_USE_GLOBAL_LOCKS` macro in the project's configuration files or build system. Set it to `0` to disable global locks (single-core mode) or `1` to enable them (multi-core mode).
+
+At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::memoryInit()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
