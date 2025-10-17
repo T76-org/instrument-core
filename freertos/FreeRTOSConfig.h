@@ -117,7 +117,7 @@ extern "C" {
 #define configTIMER_QUEUE_LENGTH                10
 #define configTIMER_TASK_STACK_DEPTH            512
 
-// #define configKERNEL_INTERRUPT_PRIORITY         16
+#define configKERNEL_INTERRUPT_PRIORITY         8
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    16
 /* configMAX_API_CALL_INTERRUPT_PRIORITY is a new name for configMAX_SYSCALL_INTERRUPT_PRIORITY
  that is used by newer ports only. The two are equivalent. */

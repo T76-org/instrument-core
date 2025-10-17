@@ -50,10 +50,10 @@ void printTask(void *params) {
 
     while (true) {
         char *ptr = new char[320];
-        snprintf(ptr, 32, "Hello from core %d! Count: %d\n", get_core_num(), count++);
+        snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         delete[] ptr;
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -67,11 +67,11 @@ void core1Task() {
 
     while (true) {
         char *ptr = static_cast<char*>(malloc(320));
-        snprintf(ptr, 32, "Hello from core %d! Count: %d\n", get_core_num(), count++);
+        snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         free(ptr);
         status_led_set_state(!status_led_get_state());
-        sleep_ms(1000);
+        sleep_ms(100);
     }
 }
 
@@ -81,6 +81,7 @@ void core1Task() {
  * @return int Exit code (not used)
  */
 int main() {
+    // Initialize memory management system
     T76::Sys::Memory::memoryInit();
 
     // Initialize stdio and status LED
