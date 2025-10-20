@@ -18,13 +18,12 @@
 
 extern "C" {
 
-    void t76_assert_func(const char* file, int line, const char* func, const char* expr) {
+    void my_assert_func(const char* file, int line, const char* func, const char* expr) {
         char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
         snprintf(description, sizeof(description), "FreeRTOS assertion failed: %s", expr ? expr : "unknown");
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::FREERTOS_ASSERT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             description, file, static_cast<uint32_t>(line), func,
             T76::Sys::Safety::RecoveryAction::HALT
         );
@@ -33,7 +32,6 @@ extern "C" {
     void vApplicationMallocFailedHook(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::MALLOC_FAILED,
-            T76::Sys::Safety::FaultSeverity::CRITICAL,
             "FreeRTOS malloc failed - insufficient heap memory",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::HALT
@@ -47,7 +45,6 @@ extern "C" {
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::STACK_OVERFLOW,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             description, __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
         );
@@ -57,7 +54,6 @@ extern "C" {
     void HardFault_Handler(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             "Hardware fault (HardFault) occurred",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
@@ -67,7 +63,6 @@ extern "C" {
     void MemManage_Handler(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             "Memory management fault occurred",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
@@ -77,7 +72,6 @@ extern "C" {
     void BusFault_Handler(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             "Bus fault occurred",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
@@ -87,7 +81,6 @@ extern "C" {
     void UsageFault_Handler(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             "Usage fault occurred",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
@@ -101,7 +94,6 @@ extern "C" {
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             description, file, static_cast<uint32_t>(line), func,
             T76::Sys::Safety::RecoveryAction::HALT
         );
@@ -116,7 +108,6 @@ extern "C" {
     void abort(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
-            T76::Sys::Safety::FaultSeverity::FATAL,
             "Program called abort()",
             __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET

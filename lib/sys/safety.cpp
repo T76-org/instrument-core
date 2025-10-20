@@ -103,22 +103,10 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Safe string copy with bounds checking (inline for performance)
-     */
-    static inline void safeStrCopy(char* dest, const char* src, size_t dest_size) {
-        if (dest == nullptr || src == nullptr || dest_size == 0) {
-            return;
-        }
-        strncpy(dest, src, dest_size - 1);
-        dest[dest_size - 1] = '\0';
-    }
-
-    /**
      * @brief Create and populate fault info structure
      */
     static void createFaultInfo(FaultInfo& info, 
                                FaultType type,
-                               FaultSeverity severity,
                                const char* description,
                                const char* file,
                                uint32_t line,
@@ -131,20 +119,14 @@ namespace T76::Sys::Safety {
         info.timestamp = to_ms_since_boot(get_absolute_time());
         info.core_id = get_core_num();
         info.type = type;
-        info.severity = severity;
         info.recovery_action = recovery_action;
         info.line_number = line;
 
-        // Copy strings safely
-        safeStrCopy(info.file_name, file ? file : "unknown", sizeof(info.file_name));
-        safeStrCopy(info.function_name, function ? function : "unknown", sizeof(info.function_name));
-        safeStrCopy(info.description, description ? description : "No description", sizeof(info.description));
+        // Copy strings safely using snprintf (automatically null-terminates and handles bounds)
+        snprintf(info.file_name, sizeof(info.file_name), "%s", file ? file : "unknown");
+        snprintf(info.function_name, sizeof(info.function_name), "%s", function ? function : "unknown");
+        snprintf(info.description, sizeof(info.description), "%s", description ? description : "No description");
 
-        // Get system state information using inline assembly
-        __asm volatile ("MOV %0, SP" : "=r" (info.stack_pointer));
-        __asm volatile ("MOV %0, PC" : "=r" (info.program_counter));
-        __asm volatile ("MOV %0, LR" : "=r" (info.link_register));
-        
         // Check if we're in an exception/interrupt by examining the IPSR
         uint32_t ipsr;
         __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
@@ -172,10 +154,6 @@ namespace T76::Sys::Safety {
      */
     static void executeRecoveryAction(const FaultInfo& info) {
         switch (info.recovery_action) {
-            case RecoveryAction::CONTINUE:
-                // Log and continue - do nothing special
-                break;
-
             case RecoveryAction::HALT:
                 // Disable interrupts and halt
                 __asm volatile ("cpsid i");  // Disable interrupts directly
@@ -193,39 +171,8 @@ namespace T76::Sys::Safety {
                 }
                 break;
 
-            case RecoveryAction::REBOOT:
-                // Reboot into recovery mode
-                // Set a flag in persistent memory if available
-                __asm volatile("bkpt #0");
-                while (true) {
-                    tight_loop_contents();
-                }
-                break;
-
-            case RecoveryAction::RESTART_TASK:
-                // Only valid for FreeRTOS tasks on Core 0
-                if (info.core_id == 0 && !info.is_in_interrupt && info.task_handle != 0) {
-                    TaskHandle_t task = reinterpret_cast<TaskHandle_t>(info.task_handle);
-                    vTaskDelete(task);
-                    // Note: Task would need to be recreated by a supervisor task
-                }
-                break;
-
-            case RecoveryAction::RESTART_CORE:
-                if (info.core_id == 1) {
-                    // Reset Core 1
-                    multicore_reset_core1();
-                } else {
-                    // Can't restart Core 0 - fall back to system reset
-                    __asm volatile("bkpt #0");
-                    while (true) {
-                        tight_loop_contents();
-                    }
-                }
-                break;
-
             default:
-                // Unknown recovery action - halt
+                // Unknown recovery action - default to halt
                 __asm volatile ("cpsid i");  // Disable interrupts directly
                 while (true) {
                     tight_loop_contents();
@@ -242,7 +189,6 @@ namespace T76::Sys::Safety {
         printf("Timestamp: %lu ms\n", info.timestamp);
         printf("Core: %lu\n", info.core_id);
         printf("Type: %s\n", faultTypeToString(info.type));
-        printf("Severity: %s\n", faultSeverityToString(info.severity));
         printf("Recovery: %s\n", recoveryActionToString(info.recovery_action));
         printf("File: %s:%lu\n", info.file_name, info.line_number);
         printf("Function: %s\n", info.function_name);
@@ -251,10 +197,6 @@ namespace T76::Sys::Safety {
         if (info.task_handle != 0) {
             printf("Task: %s (0x%08lX)\n", info.task_name, info.task_handle);
         }
-        
-        printf("Stack Pointer: 0x%08lX\n", info.stack_pointer);
-        printf("Program Counter: 0x%08lX\n", info.program_counter);
-        printf("Link Register: 0x%08lX\n", info.link_register);
         
         if (info.is_in_interrupt) {
             printf("Interrupt Context: %lu\n", info.interrupt_number);
@@ -328,7 +270,6 @@ namespace T76::Sys::Safety {
      * @brief Internal function to report faults (used by system hooks)
      */
     void reportFault(FaultType type, 
-                     FaultSeverity severity,
                      const char* description,
                      const char* file,
                      uint32_t line,
@@ -336,7 +277,7 @@ namespace T76::Sys::Safety {
                      RecoveryAction recovery_action) {
         
         FaultInfo info;
-        createFaultInfo(info, type, severity, description, file, line, function, recovery_action);
+        createFaultInfo(info, type, description, file, line, function, recovery_action);
         handleFault(info);
     }
 
@@ -411,25 +352,10 @@ namespace T76::Sys::Safety {
         }
     }
 
-    const char* faultSeverityToString(FaultSeverity severity) {
-        switch (severity) {
-            case FaultSeverity::INFO: return "INFO";
-            case FaultSeverity::WARNING: return "WARNING";
-            case FaultSeverity::ERROR: return "ERROR";
-            case FaultSeverity::CRITICAL: return "CRITICAL";
-            case FaultSeverity::FATAL: return "FATAL";
-            default: return "INVALID";
-        }
-    }
-
     const char* recoveryActionToString(RecoveryAction action) {
         switch (action) {
-            case RecoveryAction::CONTINUE: return "CONTINUE";
             case RecoveryAction::HALT: return "HALT";
             case RecoveryAction::RESET: return "RESET";
-            case RecoveryAction::REBOOT: return "REBOOT";
-            case RecoveryAction::RESTART_TASK: return "RESTART_TASK";
-            case RecoveryAction::RESTART_CORE: return "RESTART_CORE";
             default: return "INVALID";
         }
     }

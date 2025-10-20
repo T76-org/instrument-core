@@ -102,26 +102,11 @@ namespace T76::Sys::Safety {
     };
 
     /**
-     * @brief Enumeration of fault severity levels
-     */
-    enum class FaultSeverity : uint8_t {
-        INFO = 0,         ///< Informational, system can continue
-        WARNING,          ///< Warning, system can continue with degraded performance
-        ERROR,            ///< Error, system should attempt recovery
-        CRITICAL,         ///< Critical error, immediate action required
-        FATAL,            ///< Fatal error, system must halt/reset
-    };
-
-    /**
      * @brief Enumeration of recovery actions
      */
     enum class RecoveryAction : uint8_t {
-        CONTINUE = 0,     ///< Log fault and continue execution
-        HALT,             ///< Halt execution, wait for external intervention
+        HALT = 0,         ///< Halt execution, wait for external intervention
         RESET,            ///< Perform immediate system reset
-        REBOOT,           ///< Reboot into recovery mode
-        RESTART_TASK,     ///< Restart the affected task (FreeRTOS only)
-        RESTART_CORE,     ///< Restart the affected core
     };
 
     /**
@@ -131,7 +116,6 @@ namespace T76::Sys::Safety {
         uint32_t timestamp;                                 ///< System tick when fault occurred
         uint32_t core_id;                                   ///< Core ID where fault occurred (0 or 1)
         FaultType type;                                     ///< Type of fault
-        FaultSeverity severity;                             ///< Severity level
         RecoveryAction recovery_action;                     ///< Recommended recovery action
         uint32_t line_number;                               ///< Source code line number
         char file_name[MAX_FILE_NAME_LEN];                  ///< Source file name
@@ -139,9 +123,6 @@ namespace T76::Sys::Safety {
         char description[MAX_FAULT_DESC_LEN];               ///< Human-readable fault description
         uint32_t task_handle;                               ///< FreeRTOS task handle (if applicable)
         char task_name[T76_MAX_TASK_NAME_LEN];             ///< FreeRTOS task name (if applicable)
-        uint32_t stack_pointer;                             ///< Stack pointer at time of fault
-        uint32_t program_counter;                           ///< Program counter at time of fault
-        uint32_t link_register;                             ///< Link register at time of fault
         uint32_t fault_specific_data[4];                    ///< Additional fault-specific data
         uint32_t heap_free_bytes;                           ///< Available heap at time of fault
         uint32_t min_heap_free_bytes;                       ///< Minimum heap free since boot
@@ -189,7 +170,6 @@ namespace T76::Sys::Safety {
      * to report various types of faults to the safety system.
      * 
      * @param type Type of fault that occurred
-     * @param severity Severity level of the fault
      * @param description Human-readable description of the fault
      * @param file Source file where fault occurred
      * @param line Line number where fault occurred
@@ -197,7 +177,6 @@ namespace T76::Sys::Safety {
      * @param recovery_action Recommended recovery action
      */
     void reportFault(FaultType type, 
-                    FaultSeverity severity,
                     const char* description,
                     const char* file,
                     uint32_t line,
@@ -218,14 +197,6 @@ namespace T76::Sys::Safety {
      * @return String representation of fault type
      */
     const char* faultTypeToString(FaultType type);
-
-    /**
-     * @brief Convert fault severity to string
-     * 
-     * @param severity Fault severity
-     * @return String representation of fault severity
-     */
-    const char* faultSeverityToString(FaultSeverity severity);
 
     /**
      * @brief Convert recovery action to string
