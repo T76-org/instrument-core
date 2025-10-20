@@ -48,7 +48,7 @@ namespace T76::Sys::SafetyMonitor {
      * @brief FreeRTOS task for continuous fault reporting
      */
     static void faultReporterTask(void *param) {
-        T76::Sys::Safety::FaultInfo fault_info = *(T76::Sys::Safety::FaultInfo*)param;
+        T76::Sys::Safety::FaultInfo faultInfo = *(T76::Sys::Safety::FaultInfo*)param;
         
         printf("\n\n");
         printf("=====================================\n");
@@ -57,19 +57,19 @@ namespace T76::Sys::SafetyMonitor {
         printf("=====================================\n\n");
 
         // Report the fault information repeatedly forever
-        int report_count = 0;
+        int reportCount = 0;
         
         while (true) {
             // Toggle status LED to indicate fault state
             status_led_set_state(!status_led_get_state());
             
-            printf("--- SAFETY MONITOR REPORT #%d ---\n", report_count + 1);
+            printf("--- SAFETY MONITOR REPORT #%d ---\n", reportCount + 1);
             Safety::printFaultInfo();
             printf("Safety Monitor will continue reporting indefinitely...\n");
             printf("Manual reset required to clear fault state.\n\n");
             
             vTaskDelay(1000 / portTICK_PERIOD_MS); // Wait 1 second
-            report_count++;
+            reportCount++;
         }
     }
 

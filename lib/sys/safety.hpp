@@ -95,21 +95,21 @@ namespace T76::Sys::Safety {
      */
     struct FaultInfo {
         uint32_t timestamp;                                 ///< System tick when fault occurred
-        uint32_t core_id;                                   ///< Core ID where fault occurred (0 or 1)
+        uint32_t coreId;                                    ///< Core ID where fault occurred (0 or 1)
         FaultType type;                                     ///< Type of fault
-        RecoveryAction recovery_action;                     ///< Recommended recovery action
-        uint32_t line_number;                               ///< Source code line number
-        char file_name[MAX_FILE_NAME_LEN];                  ///< Source file name
-        char function_name[MAX_FUNCTION_NAME_LEN];          ///< Function name where fault occurred
+        RecoveryAction recoveryAction;                      ///< Recommended recovery action
+        uint32_t lineNumber;                                ///< Source code line number
+        char fileName[MAX_FILE_NAME_LEN];                   ///< Source file name
+        char functionName[MAX_FUNCTION_NAME_LEN];           ///< Function name where fault occurred
         char description[MAX_FAULT_DESC_LEN];               ///< Human-readable fault description
-        uint32_t task_handle;                               ///< FreeRTOS task handle (if applicable)
-        char task_name[T76_MAX_TASK_NAME_LEN];             ///< FreeRTOS task name (if applicable)
-        uint32_t fault_specific_data[4];                    ///< Additional fault-specific data
-        uint32_t heap_free_bytes;                           ///< Available heap at time of fault
-        uint32_t min_heap_free_bytes;                       ///< Minimum heap free since boot
-        bool is_in_interrupt;                               ///< True if fault occurred in interrupt context
-        uint32_t interrupt_number;                          ///< Interrupt number (if in interrupt)
-        uint32_t fault_count;                               ///< Total number of faults since boot
+        uint32_t taskHandle;                                ///< FreeRTOS task handle (if applicable)
+        char taskName[T76_MAX_TASK_NAME_LEN];              ///< FreeRTOS task name (if applicable)
+        uint32_t faultSpecificData[4];                      ///< Additional fault-specific data
+        uint32_t heapFreeBytes;                             ///< Available heap at time of fault
+        uint32_t minHeapFreeBytes;                          ///< Minimum heap free since boot
+        bool isInInterrupt;                                 ///< True if fault occurred in interrupt context
+        uint32_t interruptNumber;                           ///< Interrupt number (if in interrupt)
+        uint32_t faultCount;                                ///< Total number of faults since boot
     };
 
     /**
@@ -124,10 +124,10 @@ namespace T76::Sys::Safety {
     /**
      * @brief Get information about the last fault that occurred
      * 
-     * @param fault_info Output parameter to receive fault information
+     * @param faultInfo Output parameter to receive fault information
      * @return true if valid fault information was retrieved, false otherwise
      */
-    bool getLastFault(FaultInfo& fault_info);
+    bool getLastFault(FaultInfo& faultInfo);
 
     /**
      * @brief Get the total number of faults since system boot
@@ -155,14 +155,14 @@ namespace T76::Sys::Safety {
      * @param file Source file where fault occurred
      * @param line Line number where fault occurred
      * @param function Function name where fault occurred
-     * @param recovery_action Recommended recovery action
+     * @param recoveryAction Recommended recovery action
      */
     void reportFault(FaultType type, 
                     const char* description,
                     const char* file,
                     uint32_t line,
                     const char* function,
-                    RecoveryAction recovery_action);
+                    RecoveryAction recoveryAction);
 
     /**
      * @brief Check if the system is in a fault state
