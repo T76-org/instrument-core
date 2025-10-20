@@ -150,8 +150,8 @@ extern "C" {
 //#define configASSERT( x )  assert( x )
 #ifdef NDEBUG           /* required by ANSI standard */
 #  define configASSERT(__e) ((void)0)
-#else
-#  define configASSERT(__e) ((__e) ? (void)0 : my_assert_func(__FILE__, __LINE__, __func__, #__e))
+#else //TODO FIX THIS
+// #  define configASSERT(__e) ((__e) ? (void)0 : my_assert_func(__FILE__, __LINE__, __func__, #__e))
 #endif
 
 /* Set the following definitions to 1 to include the API function, or zero

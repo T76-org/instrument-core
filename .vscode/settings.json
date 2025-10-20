@@ -40,6 +40,7 @@
     "stm32-for-vscode.openOCDPath": false,
     "stm32-for-vscode.armToolchainPath": false,
     "files.associations": {
-        "freertos.h": "c"
+        "freertos.h": "c",
+        "safety.hpp": "c"
     }
 }

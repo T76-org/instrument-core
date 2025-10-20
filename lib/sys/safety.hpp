@@ -183,6 +183,28 @@ namespace T76::Sys::Safety {
     void clearFaultHistory();
 
     /**
+     * @brief Report a fault to the safety system
+     * 
+     * This function is used internally by system hooks and wrapper functions
+     * to report various types of faults to the safety system.
+     * 
+     * @param type Type of fault that occurred
+     * @param severity Severity level of the fault
+     * @param description Human-readable description of the fault
+     * @param file Source file where fault occurred
+     * @param line Line number where fault occurred
+     * @param function Function name where fault occurred
+     * @param recovery_action Recommended recovery action
+     */
+    void reportFault(FaultType type, 
+                    FaultSeverity severity,
+                    const char* description,
+                    const char* file,
+                    uint32_t line,
+                    const char* function,
+                    RecoveryAction recovery_action);
+
+    /**
      * @brief Check if the system is in a fault state
      * 
      * @return true if a fault is currently being processed, false otherwise
@@ -214,29 +236,3 @@ namespace T76::Sys::Safety {
     const char* recoveryActionToString(RecoveryAction action);
 
 } // namespace T76::Sys::Safety
-
-// C-style wrapper functions for use with FreeRTOS hooks and other C code
-extern "C" {
-    /**
-     * @brief FreeRTOS assert hook function (called by configASSERT)
-     */
-    void my_assert_func(const char* file, int line, const char* func, const char* expr);
-
-    /**
-     * @brief FreeRTOS malloc failed hook (called when heap allocation fails)
-     */
-    void vApplicationMallocFailedHook(void);
-
-    /**
-     * @brief FreeRTOS stack overflow hook (called when stack overflow detected)
-     */
-    void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName);
-
-    /**
-     * @brief Hardware fault handlers
-     */
-    void HardFault_Handler(void);
-    void MemManage_Handler(void);
-    void BusFault_Handler(void);
-    void UsageFault_Handler(void);
-}
