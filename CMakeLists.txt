@@ -82,6 +82,7 @@ target_link_libraries(t76-instrument-core
         pico_cyw43_arch_none
         pico_status_led
         pico_multicore
+        hardware_sync_spin_lock
 )
 
 pico_add_extra_outputs(t76-instrument-core)

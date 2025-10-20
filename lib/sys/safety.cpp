@@ -24,11 +24,11 @@
 #include <pico/time.h>
 #include <hardware/exception.h>
 #include <hardware/sync.h>
+#include <hardware/sync/spin_lock.h>
 
 namespace T76::Sys::Safety {
 
     // Constants for shared memory magic numbers
-    constexpr uint32_t FAULT_INFO_MAGIC = 0xF4010F0;      // "FAULT" in hex
     constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570;    // "SYSTEM" in hex
 
     /**
@@ -41,11 +41,10 @@ namespace T76::Sys::Safety {
         volatile uint32_t magic;                    ///< Magic number for structure validation
         volatile uint32_t version;                  ///< Structure version for compatibility
         volatile uint32_t fault_count;              ///< Total number of faults since boot
-        volatile bool is_in_fault_state;           ///< True if currently processing a fault
-        volatile uint32_t last_fault_core;         ///< Core ID of last fault
-        volatile uint32_t fault_lock;               ///< Simple spinlock for atomic operations
-        FaultInfo last_fault_info;                 ///< Information about the last fault
-        uint32_t reserved[8];                      ///< Reserved for future use
+        volatile bool is_in_fault_state;            ///< True if currently processing a fault
+        volatile uint32_t last_fault_core;          ///< Core ID of last fault
+        FaultInfo last_fault_info;                  ///< Information about the last fault
+        uint32_t reserved[9];                       ///< Reserved for future use
     };
 
     // Place shared fault system in a specific memory section for inter-core access
@@ -56,30 +55,8 @@ namespace T76::Sys::Safety {
     static bool g_safety_initialized = false;
     static uint32_t g_local_fault_count = 0;
 
-    /**
-     * @brief Simple spinlock implementation for inter-core synchronization
-     */
-    class SpinLock {
-    private:
-        volatile uint32_t* lock_ptr;
-
-    public:
-        explicit SpinLock(volatile uint32_t* lock) : lock_ptr(lock) {
-            // Acquire lock using atomic compare-and-swap
-            uint32_t expected = 0;
-            while (!__atomic_compare_exchange_n(lock_ptr, &expected, 1, false, 
-                                               __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-                expected = 0;
-                // Yield to other core/tasks while waiting
-                tight_loop_contents();
-            }
-        }
-
-        ~SpinLock() {
-            // Release lock
-            __atomic_store_n(lock_ptr, 0, __ATOMIC_RELEASE);
-        }
-    };
+    // Pico SDK spinlock instance for inter-core synchronization
+    static spin_lock_t* g_safety_spinlock = nullptr;
 
     /**
      * @brief Get current system timestamp in milliseconds
@@ -233,9 +210,10 @@ namespace T76::Sys::Safety {
         getTaskInfo(info.task_handle, info.task_name, sizeof(info.task_name));
 
         // Update fault count
-        if (g_shared_fault_system) {
-            SpinLock lock(&g_shared_fault_system->fault_lock);
+        if (g_shared_fault_system && g_safety_spinlock) {
+            uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
             info.fault_count = ++g_shared_fault_system->fault_count;
+            spin_unlock(g_safety_spinlock, saved_irq);
         } else {
             info.fault_count = ++g_local_fault_count;
         }
@@ -348,11 +326,12 @@ namespace T76::Sys::Safety {
      */
     static void handleFault(const FaultInfo& info) {
         // Update shared state
-        if (g_shared_fault_system) {
-            SpinLock lock(&g_shared_fault_system->fault_lock);
+        if (g_shared_fault_system && g_safety_spinlock) {
+            uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
             g_shared_fault_system->is_in_fault_state = true;
             g_shared_fault_system->last_fault_core = info.core_id;
             g_shared_fault_system->last_fault_info = info;
+            spin_unlock(g_safety_spinlock, saved_irq);
         }
 
         // Print fault information
@@ -362,9 +341,10 @@ namespace T76::Sys::Safety {
         executeRecoveryAction(info);
 
         // Clear fault state (may not be reached depending on recovery action)
-        if (g_shared_fault_system) {
-            SpinLock lock(&g_shared_fault_system->fault_lock);
+        if (g_shared_fault_system && g_safety_spinlock) {
+            uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
             g_shared_fault_system->is_in_fault_state = false;
+            spin_unlock(g_safety_spinlock, saved_irq);
         }
     }
 
@@ -386,7 +366,11 @@ namespace T76::Sys::Safety {
             g_shared_fault_system->version = 1;
             g_shared_fault_system->fault_count = 0;
             g_shared_fault_system->is_in_fault_state = false;
-            g_shared_fault_system->fault_lock = 0;
+        }
+
+        // Initialize Pico SDK spinlock (safe to call multiple times)
+        if (g_safety_spinlock == nullptr) {
+            g_safety_spinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
         }
 
         g_safety_initialized = true;
@@ -409,49 +393,57 @@ namespace T76::Sys::Safety {
     }
 
     bool getLastFault(FaultInfo& fault_info) {
-        if (!g_shared_fault_system) {
+        if (!g_shared_fault_system || !g_safety_spinlock) {
             return false;
         }
 
-        SpinLock lock(&g_shared_fault_system->fault_lock);
+        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
         
         if (g_shared_fault_system->fault_count == 0) {
+            spin_unlock(g_safety_spinlock, saved_irq);
             return false;
         }
 
         fault_info = g_shared_fault_system->last_fault_info;
+        spin_unlock(g_safety_spinlock, saved_irq);
         
         return true;
     }
 
     uint32_t getFaultCount() {
-        if (!g_shared_fault_system) {
+        if (!g_shared_fault_system || !g_safety_spinlock) {
             return g_local_fault_count;
         }
 
-        SpinLock lock(&g_shared_fault_system->fault_lock);
-        return g_shared_fault_system->fault_count;
+        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
+        uint32_t count = g_shared_fault_system->fault_count;
+        spin_unlock(g_safety_spinlock, saved_irq);
+        return count;
     }
 
     void clearFaultHistory() {
-        if (!g_shared_fault_system) {
+        if (!g_shared_fault_system || !g_safety_spinlock) {
             g_local_fault_count = 0;
             return;
         }
 
-        SpinLock lock(&g_shared_fault_system->fault_lock);
+        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
         g_shared_fault_system->fault_count = 0;
         g_shared_fault_system->is_in_fault_state = false;
         memset(&g_shared_fault_system->last_fault_info, 0, sizeof(FaultInfo));
+        spin_unlock(g_safety_spinlock, saved_irq);
+        g_local_fault_count = 0;
     }
 
     bool isInFaultState() {
-        if (!g_shared_fault_system) {
+        if (!g_shared_fault_system || !g_safety_spinlock) {
             return false;
         }
 
-        SpinLock lock(&g_shared_fault_system->fault_lock);
-        return g_shared_fault_system->is_in_fault_state;
+        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
+        bool in_fault = g_shared_fault_system->is_in_fault_state;
+        spin_unlock(g_safety_spinlock, saved_irq);
+        return in_fault;
     }
 
     const char* faultTypeToString(FaultType type) {
