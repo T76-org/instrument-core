@@ -43,29 +43,10 @@
 #include <cstdint>
 #include <cstring>
 
-// Check if FreeRTOS is available and include proper headers
-#ifdef __has_include
-    #if __has_include("FreeRTOS.h")
-        #include "FreeRTOS.h"
-        #include "task.h"
-        #define T76_FREERTOS_AVAILABLE 1
-    #else
-        #define T76_FREERTOS_AVAILABLE 0
-        // Forward declaration when FreeRTOS is not available
-        typedef void* TaskHandle_t;
-    #endif
-#else
-    #define T76_FREERTOS_AVAILABLE 0
-    // Forward declaration when FreeRTOS is not available
-    typedef void* TaskHandle_t;
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
 
-// Define max task name length based on FreeRTOS availability
-#if T76_FREERTOS_AVAILABLE
-    #define T76_MAX_TASK_NAME_LEN configMAX_TASK_NAME_LEN
-#else
-    #define T76_MAX_TASK_NAME_LEN 16
-#endif
+#define T76_MAX_TASK_NAME_LEN configMAX_TASK_NAME_LEN
 
 namespace T76::Sys::Safety {
 
@@ -191,19 +172,10 @@ namespace T76::Sys::Safety {
     bool isInFaultState();
 
     /**
-     * @brief Convert fault type to string
+     * @brief Print fault information to console
      * 
-     * @param type Fault type
-     * @return String representation of fault type
      */
-    const char* faultTypeToString(FaultType type);
+    void printFaultInfo();
 
-    /**
-     * @brief Convert recovery action to string
-     * 
-     * @param action Recovery action
-     * @return String representation of recovery action
-     */
-    const char* recoveryActionToString(RecoveryAction action);
-
+    
 } // namespace T76::Sys::Safety

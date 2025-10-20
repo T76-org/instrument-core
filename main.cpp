@@ -53,6 +53,8 @@ void printTask(void *params) {
         fputs(ptr, stdout);
         delete[] ptr;
         
+        char *ptr2 = (char *) malloc(10000);
+        ptr2[0] = 0; // Prevent optimization
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -73,8 +75,6 @@ void core1Task() {
         snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         free(ptr);
-        char *ptr2 = (char *) malloc(10000);
-        ptr2[0] = 0; // Prevent optimization
         status_led_set_state(!status_led_get_state());
         
         sleep_ms(100);
@@ -115,7 +115,7 @@ int main() {
     xTaskCreate(
         printTask,
         "print",
-        256,
+        2256,
         NULL,
         1,
         NULL

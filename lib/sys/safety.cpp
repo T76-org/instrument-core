@@ -6,6 +6,7 @@
  */
 
 #include "safety.hpp"
+#include "safety_monitor.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -25,9 +26,9 @@
 #include <hardware/exception.h>
 #include <hardware/sync.h>
 #include <hardware/sync/spin_lock.h>
+#include <hardware/watchdog.h>
 
 namespace T76::Sys::Safety {
-
     // Constants for shared memory magic numbers
     constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570;    // "SYSTEM" in hex
 
@@ -47,9 +48,9 @@ namespace T76::Sys::Safety {
         uint32_t reserved[9];                       ///< Reserved for future use
     };
 
-    // Place shared fault system in a specific memory section for inter-core access
+    // Place shared fault system in uninitialized RAM for persistence across resets
     static SharedFaultSystem* g_shared_fault_system = nullptr;
-    static uint8_t g_shared_memory[sizeof(SharedFaultSystem)] __attribute__((aligned(4)));
+    static uint8_t g_shared_memory[sizeof(SharedFaultSystem)] __attribute__((section(".uninitialized_data"))) __attribute__((aligned(4)));
 
     // Local fault state for each core
     static bool g_safety_initialized = false;
@@ -57,8 +58,6 @@ namespace T76::Sys::Safety {
 
     // Pico SDK spinlock instance for inter-core synchronization
     static spin_lock_t* g_safety_spinlock = nullptr;
-
-
 
     /**
      * @brief Get heap statistics
@@ -150,72 +149,35 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Execute recovery action based on fault severity and type
+     * @brief Check for persistent fault information from previous boot
+     * 
+     * @param fault_info Output parameter to receive fault information if found
+     * @return true if a persistent fault was detected, false otherwise
      */
-    static void executeRecoveryAction(const FaultInfo& info) {
-        switch (info.recovery_action) {
-            case RecoveryAction::HALT:
-                // Disable interrupts and halt
-                __asm volatile ("cpsid i");  // Disable interrupts directly
-                while (true) {
-                    tight_loop_contents();
-                }
-                break;
+    static bool checkForPersistentFault() {
+        if (!g_shared_fault_system) {
+            return false;
+        }
 
-            case RecoveryAction::RESET:
-                // Perform immediate system reset
-                // Force immediate reset by triggering a fault
-                __asm volatile("bkpt #0");
-                while (true) {
-                    tight_loop_contents();
-                }
-                break;
+        // Check if the shared system is valid and contains fault information
+        if (g_shared_fault_system->magic != FAULT_SYSTEM_MAGIC) {
+            return false;
+        }
 
-            default:
-                // Unknown recovery action - default to halt
-                __asm volatile ("cpsid i");  // Disable interrupts directly
-                while (true) {
-                    tight_loop_contents();
-                }
-                break;
+        // Check if we're in a fault state from a previous boot
+        if (!g_shared_fault_system->is_in_fault_state) {
+            return false;
         }
-    }
 
-    /**
-     * @brief Print fault information to console
-     */
-    static void printFaultInfo(const FaultInfo& info) {
-        printf("\n" "=== SYSTEM FAULT DETECTED ===\n");
-        printf("Timestamp: %lu ms\n", info.timestamp);
-        printf("Core: %lu\n", info.core_id);
-        printf("Type: %s\n", faultTypeToString(info.type));
-        printf("Recovery: %s\n", recoveryActionToString(info.recovery_action));
-        printf("File: %s:%lu\n", info.file_name, info.line_number);
-        printf("Function: %s\n", info.function_name);
-        printf("Description: %s\n", info.description);
-        
-        if (info.task_handle != 0) {
-            printf("Task: %s (0x%08lX)\n", info.task_name, info.task_handle);
-        }
-        
-        if (info.is_in_interrupt) {
-            printf("Interrupt Context: %lu\n", info.interrupt_number);
-        }
-        
-        if (info.heap_free_bytes > 0) {
-            printf("Heap Free: %lu bytes\n", info.heap_free_bytes);
-            printf("Min Heap Free: %lu bytes\n", info.min_heap_free_bytes);
-        }
-        
-        printf("Fault Count: %lu\n", info.fault_count);
-        printf("==============================\n\n");
+        // Copy the fault information
+        return true;
     }
 
     /**
      * @brief Core fault handling function
      */
     static void handleFault(const FaultInfo& info) {
-        // Update shared state
+        // Store fault information in persistent memory before reset
         if (g_shared_fault_system && g_safety_spinlock) {
             uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
             g_shared_fault_system->is_in_fault_state = true;
@@ -224,17 +186,14 @@ namespace T76::Sys::Safety {
             spin_unlock(g_safety_spinlock, saved_irq);
         }
 
-        // Print fault information
-        printFaultInfo(info);
+        // Give a brief moment for any pending output to complete
+        sleep_ms(100);
 
-        // Execute recovery action
-        executeRecoveryAction(info);
-
-        // Clear fault state (may not be reached depending on recovery action)
-        if (g_shared_fault_system && g_safety_spinlock) {
-            uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
-            g_shared_fault_system->is_in_fault_state = false;
-            spin_unlock(g_safety_spinlock, saved_irq);
+        // Perform immediate system reset using watchdog
+        // This is more reliable than triggering a fault
+        watchdog_enable(1, 1);
+        while (true) {
+            tight_loop_contents();
         }
     }
 
@@ -248,6 +207,18 @@ namespace T76::Sys::Safety {
         // Initialize shared memory on first call from either core
         g_shared_fault_system = reinterpret_cast<SharedFaultSystem*>(g_shared_memory);
         
+        // Initialize Pico SDK spinlock (safe to call multiple times)
+        if (g_safety_spinlock == nullptr) {
+            g_safety_spinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
+        }
+
+        // Check if we are responding to a fault condition
+        if (checkForPersistentFault()) {
+            // Initialize the Safety Monitor - this will check for persistent faults
+            // and enter reporting mode if needed (function will not return in that case)
+            SafetyMonitor::runSafetyMonitor();
+        }
+
         // Check if already initialized by other core
         if (g_shared_fault_system->magic != FAULT_SYSTEM_MAGIC) {
             // First initialization
@@ -256,11 +227,6 @@ namespace T76::Sys::Safety {
             g_shared_fault_system->version = 1;
             g_shared_fault_system->fault_count = 0;
             g_shared_fault_system->is_in_fault_state = false;
-        }
-
-        // Initialize Pico SDK spinlock (safe to call multiple times)
-        if (g_safety_spinlock == nullptr) {
-            g_safety_spinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
         }
 
         g_safety_initialized = true;
@@ -354,6 +320,52 @@ namespace T76::Sys::Safety {
             case RecoveryAction::RESET: return "RESET";
             default: return "INVALID";
         }
+    }
+
+    // ========== Safety Monitor Access Functions ==========
+
+    /**
+     * @brief Get access to the shared fault system for Safety Monitor
+     */
+    SharedFaultSystem* getSharedFaultSystem() {
+        return g_shared_fault_system;
+    }
+
+    /**
+     * @brief Get the fault system magic number for Safety Monitor
+     */
+    uint32_t getFaultSystemMagic() {
+        return FAULT_SYSTEM_MAGIC;
+    }
+
+    /**
+     * @brief Print fault information to console (public version for Safety Monitor)
+     */
+    void printFaultInfo() {
+        printf("\n" "=== SYSTEM FAULT DETECTED ===\n");
+        printf("Timestamp: %lu ms\n", g_shared_fault_system->last_fault_info.timestamp);
+        printf("Core: %lu\n", g_shared_fault_system->last_fault_info.core_id);
+        printf("Type: %s\n", faultTypeToString(g_shared_fault_system->last_fault_info.type));
+        printf("Recovery: %s\n", recoveryActionToString(g_shared_fault_system->last_fault_info.recovery_action));
+        printf("File: %s:%lu\n", g_shared_fault_system->last_fault_info.file_name, g_shared_fault_system->last_fault_info.line_number);
+        printf("Function: %s\n", g_shared_fault_system->last_fault_info.function_name);
+        printf("Description: %s\n", g_shared_fault_system->last_fault_info.description);
+
+        if (g_shared_fault_system->last_fault_info.task_handle != 0) {
+            printf("Task: %s (0x%08lX)\n", g_shared_fault_system->last_fault_info.task_name, g_shared_fault_system->last_fault_info.task_handle);
+        }
+
+        if (g_shared_fault_system->last_fault_info.is_in_interrupt) {
+            printf("Interrupt Context: %lu\n", g_shared_fault_system->last_fault_info.interrupt_number);
+        }
+
+        if (g_shared_fault_system->last_fault_info.heap_free_bytes > 0) {
+            printf("Heap Free: %lu bytes\n", g_shared_fault_system->last_fault_info.heap_free_bytes);
+            printf("Min Heap Free: %lu bytes\n", g_shared_fault_system->last_fault_info.min_heap_free_bytes);
+        }
+
+        printf("Fault Count: %lu\n", g_shared_fault_system->fault_count);
+        printf("==============================\n\n");
     }
 
 } // namespace T76::Sys::Safety
