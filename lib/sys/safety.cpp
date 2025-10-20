@@ -58,74 +58,13 @@ namespace T76::Sys::Safety {
     // Pico SDK spinlock instance for inter-core synchronization
     static spin_lock_t* g_safety_spinlock = nullptr;
 
-    /**
-     * @brief Get current system timestamp in milliseconds
-     */
-    static uint32_t getCurrentTimestamp() {
-        return to_ms_since_boot(get_absolute_time());
-    }
 
-    /**
-     * @brief Get current core ID
-     */
-    static uint32_t getCurrentCoreId() {
-        return get_core_num();
-    }
-
-    /**
-     * @brief Check if currently running in interrupt context
-     */
-    static bool isInInterruptContext() {
-        // Check if we're in an exception/interrupt by examining the IPSR
-        uint32_t ipsr;
-        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
-        return (ipsr & 0x1FF) != 0;
-    }
-
-    /**
-     * @brief Get current stack pointer
-     */
-    static uint32_t getCurrentStackPointer() {
-        uint32_t sp;
-        __asm volatile ("MOV %0, SP" : "=r" (sp));
-        return sp;
-    }
-
-    /**
-     * @brief Get current program counter (approximate)
-     */
-    static uint32_t getCurrentProgramCounter() {
-        uint32_t pc;
-        __asm volatile ("MOV %0, PC" : "=r" (pc));
-        return pc;
-    }
-
-    /**
-     * @brief Get current link register
-     */
-    static uint32_t getCurrentLinkRegister() {
-        uint32_t lr;
-        __asm volatile ("MOV %0, LR" : "=r" (lr));
-        return lr;
-    }
-
-    /**
-     * @brief Get current interrupt number (if in interrupt context)
-     */
-    static uint32_t getCurrentInterruptNumber() {
-        if (!isInInterruptContext()) {
-            return 0;
-        }
-        uint32_t ipsr;
-        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
-        return ipsr & 0x1FF;
-    }
 
     /**
      * @brief Get heap statistics
      */
     static void getHeapStats(uint32_t& free_bytes, uint32_t& min_free_bytes) {
-        if (getCurrentCoreId() == 0) {
+        if (get_core_num() == 0) {
             // On Core 0, we can use FreeRTOS heap functions
             free_bytes = xPortGetFreeHeapSize();
             min_free_bytes = xPortGetMinimumEverFreeHeapSize();
@@ -144,7 +83,12 @@ namespace T76::Sys::Safety {
         task_handle = 0;
         task_name[0] = '\0';
 
-        if (getCurrentCoreId() == 0 && !isInInterruptContext()) {
+        // Check if we're in an exception/interrupt by examining the IPSR
+        uint32_t ipsr;
+        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
+        bool in_interrupt = (ipsr & 0x1FF) != 0;
+
+        if (get_core_num() == 0 && !in_interrupt) {
             // Only available on Core 0 in task context
             TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
             if (current_task != nullptr) {
@@ -159,9 +103,9 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Safe string copy with bounds checking
+     * @brief Safe string copy with bounds checking (inline for performance)
      */
-    static void safeStrCopy(char* dest, const char* src, size_t dest_size) {
+    static inline void safeStrCopy(char* dest, const char* src, size_t dest_size) {
         if (dest == nullptr || src == nullptr || dest_size == 0) {
             return;
         }
@@ -184,8 +128,8 @@ namespace T76::Sys::Safety {
         memset(&info, 0, sizeof(FaultInfo));
 
         // Fill in basic fault information
-        info.timestamp = getCurrentTimestamp();
-        info.core_id = getCurrentCoreId();
+        info.timestamp = to_ms_since_boot(get_absolute_time());
+        info.core_id = get_core_num();
         info.type = type;
         info.severity = severity;
         info.recovery_action = recovery_action;
@@ -196,12 +140,16 @@ namespace T76::Sys::Safety {
         safeStrCopy(info.function_name, function ? function : "unknown", sizeof(info.function_name));
         safeStrCopy(info.description, description ? description : "No description", sizeof(info.description));
 
-        // Get system state information
-        info.stack_pointer = getCurrentStackPointer();
-        info.program_counter = getCurrentProgramCounter();
-        info.link_register = getCurrentLinkRegister();
-        info.is_in_interrupt = isInInterruptContext();
-        info.interrupt_number = getCurrentInterruptNumber();
+        // Get system state information using inline assembly
+        __asm volatile ("MOV %0, SP" : "=r" (info.stack_pointer));
+        __asm volatile ("MOV %0, PC" : "=r" (info.program_counter));
+        __asm volatile ("MOV %0, LR" : "=r" (info.link_register));
+        
+        // Check if we're in an exception/interrupt by examining the IPSR
+        uint32_t ipsr;
+        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
+        info.is_in_interrupt = (ipsr & 0x1FF) != 0;
+        info.interrupt_number = info.is_in_interrupt ? (ipsr & 0x1FF) : 0;
 
         // Get heap statistics
         getHeapStats(info.heap_free_bytes, info.min_heap_free_bytes);
