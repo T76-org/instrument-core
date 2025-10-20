@@ -54,6 +54,7 @@ add_executable(t76-instrument-core
 
 add_compile_definitions(
     PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1 # Disable new/delete overrides so that we can provide our own.
+    NDEBUG                                   # Ensure debug assertions are enabled.
 )
 
 pico_set_program_name(t76-instrument-core "t76-instrument-core")

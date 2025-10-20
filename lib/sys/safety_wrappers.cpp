@@ -18,7 +18,7 @@
 
 extern "C" {
 
-    void my_assert_func(const char* file, int line, const char* func, const char* expr) {
+    void t76_assert_func(const char* file, int line, const char* func, const char* expr) {
         char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
         snprintf(description, sizeof(description), "FreeRTOS assertion failed: %s", expr ? expr : "unknown");
         
