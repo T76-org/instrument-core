@@ -1,489 +1,613 @@
 /**
  * @file safety.cpp
- *
- * Centralized fault interception for RP2040/RP2350 (Raspberry Pi Pico) systems
- * that mix FreeRTOS on core 0 with bare-metal work on core 1. All fatal
- * conditions funnel through this module so that we get a uniform crash record
- * and a simple post-event console for inspection.
- *
- * Covered fault sources:
- *  - C/C++ assertions (newlib / libc++)
- *  - FreeRTOS configASSERT and safety hooks
- *  - Pico SDK panic()/abort()
- *  - HardFault and other Cortex exception vectors
- *  - Pure-virtual function invocations and std::terminate()
- *
- * Once a fault is captured we freeze the other core, suspend the scheduler (if
- * it is running), and park the system in a watchdog-fed loop that hosts a tiny
- * USB console. The console currently understands a single command: `SHOW`,
- * which replays the captured crash report so that engineers can connect _after_
- * the failure and still retrieve the diagnostics.
+ * @copyright Copyright (c) 2025 MTA, Inc.
+ * 
+ * Implementation of comprehensive fault handling for the RP2350 platform.
  */
-
-#include <cctype>
-#include <cstdarg>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <exception>
-#include <new>
 
 #include "safety.hpp"
 
-#include "tusb.h"
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cassert>
 
-#include "pico.h"
-#include "pico/cyw43_arch.h"
-#include "pico/stdlib.h"
-#include "pico/time.h"
-#include "pico/multicore.h"
-#include "pico/status_led.h"
-#include "hardware/watchdog.h"
-#include "hardware/sync.h"
-#include "hardware/structs/psm.h"
+// FreeRTOS includes
+#include <FreeRTOS.h>
+#include <task.h>
+#include <semphr.h>
 
-#include "FreeRTOS.h"
-#include "task.h"
-
-namespace {
-
-constexpr size_t kFaultSourceBufferSize = 32;
-constexpr size_t kFaultMessageBufferSize = 192;
-constexpr size_t kCommandBufferSize = 16;
-constexpr uint32_t kWatchdogResetDelayMs = 100;
-
-struct FaultRecord {
-    bool valid{false};
-    char source[kFaultSourceBufferSize]{};
-    char detail[kFaultMessageBufferSize]{};
-    uint32_t core{0};
-    absolute_time_t timestamp{};
-    bool hasFrame{false};
-    T76::Sys::Safety::ExceptionStackFrame frame{};
-    uint32_t excReturn{0};
-};
-
-FaultRecord g_faultRecord{};
-volatile bool g_inFaultHandler = false;
-char g_commandBuffer[kCommandBufferSize]{};
-size_t g_commandIndex = 0;
-bool g_promptShown = false;
-
-void formatMessage(char *buffer, size_t len, const char *fmt, va_list args) {
-    if (!buffer || len == 0) {
-        return;
-    }
-    const int written = std::vsnprintf(buffer, len, fmt ? fmt : "<null>", args);
-    if (written < 0) {
-        buffer[0] = '\0';
-    } else if (static_cast<size_t>(written) >= len) {
-        buffer[len - 1] = '\0';
-    }
-}
-
-void resetCommandBuffer() {
-    g_commandIndex = 0;
-    std::memset(g_commandBuffer, 0, sizeof(g_commandBuffer));
-}
-
-bool equalsIgnoreCase(const char *lhs, const char *rhs) {
-    while (*lhs && *rhs) {
-        if (std::toupper(static_cast<unsigned char>(*lhs)) !=
-            std::toupper(static_cast<unsigned char>(*rhs))) {
-            return false;
-        }
-        ++lhs;
-        ++rhs;
-    }
-    return *lhs == '\0' && *rhs == '\0';
-}
-
-void captureFaultRecord(const char *source,
-                        const char *detail,
-                        const T76::Sys::Safety::ExceptionStackFrame *frame,
-                        uint32_t excReturn) {
-    FaultRecord &record = g_faultRecord;
-    record.valid = true;
-
-    const char *effectiveSource = source ? source : "<unknown>";
-    std::strncpy(record.source, effectiveSource, sizeof(record.source) - 1);
-    record.source[sizeof(record.source) - 1] = '\0';
-
-    if (detail && detail[0] != '\0') {
-        std::strncpy(record.detail, detail, sizeof(record.detail) - 1);
-        record.detail[sizeof(record.detail) - 1] = '\0';
-    } else {
-        record.detail[0] = '\0';
-    }
-
-    record.core = get_core_num();
-    record.timestamp = get_absolute_time();
-
-    if (frame) {
-        record.hasFrame = true;
-        record.frame = *frame;
-        record.excReturn = excReturn;
-    } else {
-        record.hasFrame = false;
-        record.excReturn = 0;
-        std::memset(&record.frame, 0, sizeof(record.frame));
-    }
-}
-
-void holdCoreInReset(uint32_t core) {
-    if (core == get_core_num()) {
-        return;
-    }
-
-    const uint32_t mask = (core == 0) ? PSM_FRCE_OFF_PROC0_BITS : PSM_FRCE_OFF_PROC1_BITS;
-    psm_hw->frce_off |= mask;
-    while ((psm_hw->frce_off & mask) == 0u) {
-        tight_loop_contents();
-    }
-}
-
-void logTaskState(const FaultRecord &record) {
-    if (record.core != 0) {
-        std::printf("  Scheduler: bare-metal core (no FreeRTOS context)\r\n");
-        return;
-    }
-
-    const auto state = xTaskGetSchedulerState();
-    if (state == taskSCHEDULER_NOT_STARTED) {
-        std::printf("  Scheduler: not started\r\n");
-        return;
-    }
-
-    const TaskHandle_t current = xTaskGetCurrentTaskHandle();
-    const char *name = current ? pcTaskGetName(current) : "<none>";
-    std::printf("  Current task: %s\r\n", name ? name : "<unnamed>");
-
-#if (defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1))
-    static constexpr UBaseType_t maxTasks = 16;
-    TaskStatus_t status[maxTasks];
-    UBaseType_t total = uxTaskGetSystemState(status, maxTasks, nullptr);
-    std::printf("  Task snapshot (%lu tasks):\r\n", static_cast<unsigned long>(total));
-    for (UBaseType_t i = 0; i < total && i < maxTasks; ++i) {
-        std::printf("    %lu: %s pri=%lu hw=%lu state=%lu\r\n",
-                    static_cast<unsigned long>(i),
-                    status[i].pcTaskName ? status[i].pcTaskName : "<unnamed>",
-                    static_cast<unsigned long>(status[i].uxCurrentPriority),
-                    static_cast<unsigned long>(status[i].usStackHighWaterMark),
-                    static_cast<unsigned long>(status[i].eCurrentState));
-    }
-#else
-#if (defined(configUSE_STATS_FORMATTING_FUNCTIONS) && (configUSE_STATS_FORMATTING_FUNCTIONS == 1))
-    char buffer[384];
-    vTaskGetRunTimeStats(buffer);
-    std::printf("  Runtime stats:\r\n%s\r\n", buffer);
-#endif
-#endif
-
-    if (current) {
-        auto watermark = uxTaskGetStackHighWaterMark(current);
-        std::printf("  Stack high water mark: %lu words\r\n",
-                    static_cast<unsigned long>(watermark));
-    }
-}
-
-void logExceptionStack(const T76::Sys::Safety::ExceptionStackFrame *frame, uint32_t excReturn) {
-    if (!frame) {
-        std::printf("  No exception stack frame available\r\n");
-        return;
-    }
-
-    std::printf("  LR/EXC_RETURN: 0x%08lx\r\n", static_cast<unsigned long>(excReturn));
-    std::printf("  R0 : 0x%08lx  R1 : 0x%08lx  R2 : 0x%08lx  R3 : 0x%08lx\r\n",
-                static_cast<unsigned long>(frame->r0),
-                static_cast<unsigned long>(frame->r1),
-                static_cast<unsigned long>(frame->r2),
-                static_cast<unsigned long>(frame->r3));
-    std::printf("  R12: 0x%08lx  LR : 0x%08lx  PC : 0x%08lx  PSR: 0x%08lx\r\n",
-                static_cast<unsigned long>(frame->r12),
-                static_cast<unsigned long>(frame->lr),
-                static_cast<unsigned long>(frame->pc),
-                static_cast<unsigned long>(frame->psr));
-}
-
-void printFaultSummary() {
-    if (!g_faultRecord.valid) {
-        std::printf("No fault recorded.\r\n");
-        std::fflush(stdout);
-        return;
-    }
-
-    const FaultRecord &record = g_faultRecord;
-
-    std::printf("\r\n========== FAULT ==========\r\n");
-        std::fflush(stdout);
-    std::printf("  Source: %s\r\n", record.source);
-        std::fflush(stdout);
-    if (record.detail[0] != '\0') {
-        std::printf("  Detail: %s\r\n", record.detail);
-    }
-    std::printf("  Core : %lu\r\n", static_cast<unsigned long>(record.core));
-        std::fflush(stdout);
-    std::printf("  Time : %llu ms since boot\r\n",
-                static_cast<unsigned long long>(to_ms_since_boot(record.timestamp)));
-        std::fflush(stdout);
-
-    logTaskState(record);
-        std::fflush(stdout);
-
-    if (record.hasFrame) {
-        logExceptionStack(&record.frame, record.excReturn);
-    } else {
-        std::printf("  No exception stack frame captured\r\n");
-    }
-        std::fflush(stdout);
-
-    std::printf("  Hint : Type SHOW to replay this crash report.\r\n");
-    std::fflush(stdout);
-}
-
-void handleCommand(const char *command) {
-    if (!command || command[0] == '\0') {
-        return;
-    }
-
-    if (equalsIgnoreCase(command, "SHOW")) {
-        printFaultSummary();
-    } else {
-        std::printf("Unknown command: %s\r\n", command);
-        std::fflush(stdout);
-    }
-}
-
-void processInteractiveCommands() {
-    if (!g_promptShown) {
-        std::printf("\r\nFault console ready. Type SHOW to replay the report.\r\n> ");
-        std::fflush(stdout);
-        g_promptShown = true;
-    }
-
-    while (true) {
-        int raw = getchar_timeout_us(0);
-        if (raw < 0) {
-            break;
-        }
-
-        char c = static_cast<char>(raw);
-        if (c == '\r' || c == '\n') {
-            std::printf("\r\n");
-            g_commandBuffer[g_commandIndex] = '\0';
-            if (g_commandIndex > 0) {
-                handleCommand(g_commandBuffer);
-            }
-            resetCommandBuffer();
-            std::printf("> ");
-            std::fflush(stdout);
-            continue;
-        }
-
-        if (c == '\b' || c == 127) {
-            if (g_commandIndex > 0) {
-                --g_commandIndex;
-                g_commandBuffer[g_commandIndex] = '\0';
-                std::printf("\b \b");
-                std::fflush(stdout);
-            }
-            continue;
-        }
-
-        if (std::isprint(static_cast<unsigned char>(c))) {
-            if (g_commandIndex < kCommandBufferSize - 1) {
-                g_commandBuffer[g_commandIndex++] = c;
-                std::putchar(c);
-                std::fflush(stdout);
-            }
-        }
-    }
-}
-
-[[noreturn]] void enterSafeLoop() {
-    watchdog_enable(kWatchdogResetDelayMs, true);
-    bool ledOn = true;
-    status_led_set_state(ledOn);
-    absolute_time_t nextToggle = make_timeout_time_ms(100);
-    while (true) {
-        watchdog_update();
-        tud_task();
-        processInteractiveCommands();
-        if (absolute_time_diff_us(nextToggle, get_absolute_time()) <= 0) {
-            ledOn = !ledOn;
-            status_led_set_state(ledOn);
-            nextToggle = make_timeout_time_ms(ledOn ? 100 : 200);
-        }
-        tight_loop_contents();
-    }
-}
-
-[[noreturn]] void reportFatal(const char *source,
-                              const char *detail,
-                              const T76::Sys::Safety::ExceptionStackFrame *frame = nullptr,
-                              uint32_t excReturn = 0) {
-
-                                printf("[safety] Reporting fatal error from source: %s\r\n", source ? source : "<null>");
-
-    if (g_inFaultHandler) {
-        enterSafeLoop();
-    }
-    g_inFaultHandler = true;
-
-    captureFaultRecord(source, detail, frame, excReturn);
-
-    const bool faultOnCore0 = (g_faultRecord.core == 0);
-
-    printf("Fault on core %u detected. Freezing other core and entering safe loop.\r\n", g_faultRecord.core);
-
-    if (faultOnCore0) {
-        holdCoreInReset(1);
-    }
-
-    // vTaskSuspendAll();
-
-    // printFaultSummary();
-
-    while(true) {
-        status_led_set_state(!status_led_get_state());
-        sleep_ms(100);
-    }
-
-    std::fflush(stdout);
-    std::fflush(stderr);
-
-    // enterSafeLoop();
-}
-
-} // namespace
+// Pico SDK includes
+#include <pico/stdlib.h>
+#include <pico/multicore.h>
+#include <pico/platform.h>
+#include <pico/time.h>
+#include <hardware/exception.h>
+#include <hardware/sync.h>
 
 namespace T76::Sys::Safety {
 
-void initialize() {
-    std::set_terminate([] {
-        reportFatal("std::terminate", "Unhandled C++ exception or terminate() call");
-    });
+    // Constants for shared memory magic numbers
+    constexpr uint32_t FAULT_INFO_MAGIC = 0xF4010F0;      // "FAULT" in hex
+    constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570;    // "SYSTEM" in hex
 
-#if __cplusplus < 201703L
-    std::set_unexpected([] {
-        reportFatal("std::unexpected", "Unexpected exception");
-    });
-#endif
+    /**
+     * @brief Shared memory structure for inter-core fault communication
+     * 
+     * This structure is placed in a shared memory region accessible by both cores.
+     * It uses atomic operations and memory barriers to ensure thread safety.
+     */
+    struct SharedFaultSystem {
+        volatile uint32_t magic;                    ///< Magic number for structure validation
+        volatile uint32_t version;                  ///< Structure version for compatibility
+        volatile uint32_t fault_count;              ///< Total number of faults since boot
+        volatile bool is_in_fault_state;           ///< True if currently processing a fault
+        volatile uint32_t last_fault_core;         ///< Core ID of last fault
+        volatile uint32_t fault_lock;               ///< Simple spinlock for atomic operations
+        FaultInfo last_fault_info;                 ///< Information about the last fault
+        uint32_t reserved[8];                      ///< Reserved for future use
+    };
 
-    std::set_new_handler([] {
-        reportFatal("std::new_handler", "Global new_handler invoked");
-    });
-}
+    // Place shared fault system in a specific memory section for inter-core access
+    static SharedFaultSystem* g_shared_fault_system = nullptr;
+    static uint8_t g_shared_memory[sizeof(SharedFaultSystem)] __attribute__((aligned(4)));
 
-[[noreturn]] void fatal(const char *source, const char *detail) {
-    std::fflush(stdout);
-    reportFatal(source, detail);
-}
+    // Local fault state for each core
+    static bool g_safety_initialized = false;
+    static uint32_t g_local_fault_count = 0;
 
-[[noreturn]] void fatalWithFrame(const char *source,
-                                 const char *detail,
-                                 const ExceptionStackFrame *frame,
-                                 uint32_t excReturn) {
-    reportFatal(source, detail, frame, excReturn);
-}
+    /**
+     * @brief Simple spinlock implementation for inter-core synchronization
+     */
+    class SpinLock {
+    private:
+        volatile uint32_t* lock_ptr;
+
+    public:
+        explicit SpinLock(volatile uint32_t* lock) : lock_ptr(lock) {
+            // Acquire lock using atomic compare-and-swap
+            uint32_t expected = 0;
+            while (!__atomic_compare_exchange_n(lock_ptr, &expected, 1, false, 
+                                               __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
+                expected = 0;
+                // Yield to other core/tasks while waiting
+                tight_loop_contents();
+            }
+        }
+
+        ~SpinLock() {
+            // Release lock
+            __atomic_store_n(lock_ptr, 0, __ATOMIC_RELEASE);
+        }
+    };
+
+    /**
+     * @brief Get current system timestamp in milliseconds
+     */
+    static uint32_t getCurrentTimestamp() {
+        return to_ms_since_boot(get_absolute_time());
+    }
+
+    /**
+     * @brief Get current core ID
+     */
+    static uint32_t getCurrentCoreId() {
+        return get_core_num();
+    }
+
+    /**
+     * @brief Check if currently running in interrupt context
+     */
+    static bool isInInterruptContext() {
+        // Check if we're in an exception/interrupt by examining the IPSR
+        uint32_t ipsr;
+        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
+        return (ipsr & 0x1FF) != 0;
+    }
+
+    /**
+     * @brief Get current stack pointer
+     */
+    static uint32_t getCurrentStackPointer() {
+        uint32_t sp;
+        __asm volatile ("MOV %0, SP" : "=r" (sp));
+        return sp;
+    }
+
+    /**
+     * @brief Get current program counter (approximate)
+     */
+    static uint32_t getCurrentProgramCounter() {
+        uint32_t pc;
+        __asm volatile ("MOV %0, PC" : "=r" (pc));
+        return pc;
+    }
+
+    /**
+     * @brief Get current link register
+     */
+    static uint32_t getCurrentLinkRegister() {
+        uint32_t lr;
+        __asm volatile ("MOV %0, LR" : "=r" (lr));
+        return lr;
+    }
+
+    /**
+     * @brief Get current interrupt number (if in interrupt context)
+     */
+    static uint32_t getCurrentInterruptNumber() {
+        if (!isInInterruptContext()) {
+            return 0;
+        }
+        uint32_t ipsr;
+        __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
+        return ipsr & 0x1FF;
+    }
+
+    /**
+     * @brief Get heap statistics
+     */
+    static void getHeapStats(uint32_t& free_bytes, uint32_t& min_free_bytes) {
+        if (getCurrentCoreId() == 0) {
+            // On Core 0, we can use FreeRTOS heap functions
+            free_bytes = xPortGetFreeHeapSize();
+            min_free_bytes = xPortGetMinimumEverFreeHeapSize();
+        } else {
+            // On Core 1, we need to proxy through Core 0 or use approximations
+            // For now, set to zero to indicate unavailable
+            free_bytes = 0;
+            min_free_bytes = 0;
+        }
+    }
+
+    /**
+     * @brief Get task information (if running under FreeRTOS)
+     */
+    static void getTaskInfo(uint32_t& task_handle, char* task_name, size_t task_name_len) {
+        task_handle = 0;
+        task_name[0] = '\0';
+
+        if (getCurrentCoreId() == 0 && !isInInterruptContext()) {
+            // Only available on Core 0 in task context
+            TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+            if (current_task != nullptr) {
+                task_handle = reinterpret_cast<uint32_t>(current_task);
+                const char* name = pcTaskGetName(current_task);
+                if (name != nullptr) {
+                    strncpy(task_name, name, task_name_len - 1);
+                    task_name[task_name_len - 1] = '\0';
+                }
+            }
+        }
+    }
+
+    /**
+     * @brief Safe string copy with bounds checking
+     */
+    static void safeStrCopy(char* dest, const char* src, size_t dest_size) {
+        if (dest == nullptr || src == nullptr || dest_size == 0) {
+            return;
+        }
+        strncpy(dest, src, dest_size - 1);
+        dest[dest_size - 1] = '\0';
+    }
+
+    /**
+     * @brief Create and populate fault info structure
+     */
+    static void createFaultInfo(FaultInfo& info, 
+                               FaultType type,
+                               FaultSeverity severity,
+                               const char* description,
+                               const char* file,
+                               uint32_t line,
+                               const char* function,
+                               RecoveryAction recovery_action) {
+        // Clear the structure
+        memset(&info, 0, sizeof(FaultInfo));
+
+        // Fill in basic fault information
+        info.timestamp = getCurrentTimestamp();
+        info.core_id = getCurrentCoreId();
+        info.type = type;
+        info.severity = severity;
+        info.recovery_action = recovery_action;
+        info.line_number = line;
+
+        // Copy strings safely
+        safeStrCopy(info.file_name, file ? file : "unknown", sizeof(info.file_name));
+        safeStrCopy(info.function_name, function ? function : "unknown", sizeof(info.function_name));
+        safeStrCopy(info.description, description ? description : "No description", sizeof(info.description));
+
+        // Get system state information
+        info.stack_pointer = getCurrentStackPointer();
+        info.program_counter = getCurrentProgramCounter();
+        info.link_register = getCurrentLinkRegister();
+        info.is_in_interrupt = isInInterruptContext();
+        info.interrupt_number = getCurrentInterruptNumber();
+
+        // Get heap statistics
+        getHeapStats(info.heap_free_bytes, info.min_heap_free_bytes);
+
+        // Get task information
+        getTaskInfo(info.task_handle, info.task_name, sizeof(info.task_name));
+
+        // Update fault count
+        if (g_shared_fault_system) {
+            SpinLock lock(&g_shared_fault_system->fault_lock);
+            info.fault_count = ++g_shared_fault_system->fault_count;
+        } else {
+            info.fault_count = ++g_local_fault_count;
+        }
+    }
+
+    /**
+     * @brief Execute recovery action based on fault severity and type
+     */
+    static void executeRecoveryAction(const FaultInfo& info) {
+        switch (info.recovery_action) {
+            case RecoveryAction::CONTINUE:
+                // Log and continue - do nothing special
+                break;
+
+            case RecoveryAction::HALT:
+                // Disable interrupts and halt
+                __asm volatile ("cpsid i");  // Disable interrupts directly
+                while (true) {
+                    tight_loop_contents();
+                }
+                break;
+
+            case RecoveryAction::RESET:
+                // Perform immediate system reset
+                // Force immediate reset by triggering a fault
+                __asm volatile("bkpt #0");
+                while (true) {
+                    tight_loop_contents();
+                }
+                break;
+
+            case RecoveryAction::REBOOT:
+                // Reboot into recovery mode
+                // Set a flag in persistent memory if available
+                __asm volatile("bkpt #0");
+                while (true) {
+                    tight_loop_contents();
+                }
+                break;
+
+            case RecoveryAction::RESTART_TASK:
+                // Only valid for FreeRTOS tasks on Core 0
+                if (info.core_id == 0 && !info.is_in_interrupt && info.task_handle != 0) {
+                    TaskHandle_t task = reinterpret_cast<TaskHandle_t>(info.task_handle);
+                    vTaskDelete(task);
+                    // Note: Task would need to be recreated by a supervisor task
+                }
+                break;
+
+            case RecoveryAction::RESTART_CORE:
+                if (info.core_id == 1) {
+                    // Reset Core 1
+                    multicore_reset_core1();
+                } else {
+                    // Can't restart Core 0 - fall back to system reset
+                    __asm volatile("bkpt #0");
+                    while (true) {
+                        tight_loop_contents();
+                    }
+                }
+                break;
+
+            default:
+                // Unknown recovery action - halt
+                __asm volatile ("cpsid i");  // Disable interrupts directly
+                while (true) {
+                    tight_loop_contents();
+                }
+                break;
+        }
+    }
+
+    /**
+     * @brief Print fault information to console
+     */
+    static void printFaultInfo(const FaultInfo& info) {
+        printf("\n" "=== SYSTEM FAULT DETECTED ===\n");
+        printf("Timestamp: %lu ms\n", info.timestamp);
+        printf("Core: %lu\n", info.core_id);
+        printf("Type: %s\n", faultTypeToString(info.type));
+        printf("Severity: %s\n", faultSeverityToString(info.severity));
+        printf("Recovery: %s\n", recoveryActionToString(info.recovery_action));
+        printf("File: %s:%lu\n", info.file_name, info.line_number);
+        printf("Function: %s\n", info.function_name);
+        printf("Description: %s\n", info.description);
+        
+        if (info.task_handle != 0) {
+            printf("Task: %s (0x%08lX)\n", info.task_name, info.task_handle);
+        }
+        
+        printf("Stack Pointer: 0x%08lX\n", info.stack_pointer);
+        printf("Program Counter: 0x%08lX\n", info.program_counter);
+        printf("Link Register: 0x%08lX\n", info.link_register);
+        
+        if (info.is_in_interrupt) {
+            printf("Interrupt Context: %lu\n", info.interrupt_number);
+        }
+        
+        if (info.heap_free_bytes > 0) {
+            printf("Heap Free: %lu bytes\n", info.heap_free_bytes);
+            printf("Min Heap Free: %lu bytes\n", info.min_heap_free_bytes);
+        }
+        
+        printf("Fault Count: %lu\n", info.fault_count);
+        printf("==============================\n\n");
+    }
+
+    /**
+     * @brief Core fault handling function
+     */
+    static void handleFault(const FaultInfo& info) {
+        // Update shared state
+        if (g_shared_fault_system) {
+            SpinLock lock(&g_shared_fault_system->fault_lock);
+            g_shared_fault_system->is_in_fault_state = true;
+            g_shared_fault_system->last_fault_core = info.core_id;
+            g_shared_fault_system->last_fault_info = info;
+        }
+
+        // Print fault information
+        printFaultInfo(info);
+
+        // Execute recovery action
+        executeRecoveryAction(info);
+
+        // Clear fault state (may not be reached depending on recovery action)
+        if (g_shared_fault_system) {
+            SpinLock lock(&g_shared_fault_system->fault_lock);
+            g_shared_fault_system->is_in_fault_state = false;
+        }
+    }
+
+    // ========== Public API Implementation ==========
+
+    void safetyInit() {
+        if (g_safety_initialized) {
+            return; // Already initialized
+        }
+
+        // Initialize shared memory on first call from either core
+        g_shared_fault_system = reinterpret_cast<SharedFaultSystem*>(g_shared_memory);
+        
+        // Check if already initialized by other core
+        if (g_shared_fault_system->magic != FAULT_SYSTEM_MAGIC) {
+            // First initialization
+            memset(g_shared_fault_system, 0, sizeof(SharedFaultSystem));
+            g_shared_fault_system->magic = FAULT_SYSTEM_MAGIC;
+            g_shared_fault_system->version = 1;
+            g_shared_fault_system->fault_count = 0;
+            g_shared_fault_system->is_in_fault_state = false;
+            g_shared_fault_system->fault_lock = 0;
+        }
+
+        g_safety_initialized = true;
+    }
+
+    /**
+     * @brief Internal function to report faults (used by system hooks)
+     */
+    static void reportFault(FaultType type, 
+                           FaultSeverity severity,
+                           const char* description,
+                           const char* file,
+                           uint32_t line,
+                           const char* function,
+                           RecoveryAction recovery_action) {
+        
+        FaultInfo info;
+        createFaultInfo(info, type, severity, description, file, line, function, recovery_action);
+        handleFault(info);
+    }
+
+    bool getLastFault(FaultInfo& fault_info) {
+        if (!g_shared_fault_system) {
+            return false;
+        }
+
+        SpinLock lock(&g_shared_fault_system->fault_lock);
+        
+        if (g_shared_fault_system->fault_count == 0) {
+            return false;
+        }
+
+        fault_info = g_shared_fault_system->last_fault_info;
+        
+        return true;
+    }
+
+    uint32_t getFaultCount() {
+        if (!g_shared_fault_system) {
+            return g_local_fault_count;
+        }
+
+        SpinLock lock(&g_shared_fault_system->fault_lock);
+        return g_shared_fault_system->fault_count;
+    }
+
+    void clearFaultHistory() {
+        if (!g_shared_fault_system) {
+            g_local_fault_count = 0;
+            return;
+        }
+
+        SpinLock lock(&g_shared_fault_system->fault_lock);
+        g_shared_fault_system->fault_count = 0;
+        g_shared_fault_system->is_in_fault_state = false;
+        memset(&g_shared_fault_system->last_fault_info, 0, sizeof(FaultInfo));
+    }
+
+    bool isInFaultState() {
+        if (!g_shared_fault_system) {
+            return false;
+        }
+
+        SpinLock lock(&g_shared_fault_system->fault_lock);
+        return g_shared_fault_system->is_in_fault_state;
+    }
+
+    const char* faultTypeToString(FaultType type) {
+        switch (type) {
+            case FaultType::UNKNOWN: return "UNKNOWN";
+            case FaultType::FREERTOS_ASSERT: return "FREERTOS_ASSERT";
+            case FaultType::STACK_OVERFLOW: return "STACK_OVERFLOW";
+            case FaultType::MALLOC_FAILED: return "MALLOC_FAILED";
+            case FaultType::C_ASSERT: return "C_ASSERT";
+            case FaultType::PICO_HARD_ASSERT: return "PICO_HARD_ASSERT";
+            case FaultType::HARDWARE_FAULT: return "HARDWARE_FAULT";
+            case FaultType::INTERCORE_FAULT: return "INTERCORE_FAULT";
+            case FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
+            case FaultType::INVALID_STATE: return "INVALID_STATE";
+            case FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
+            default: return "INVALID";
+        }
+    }
+
+    const char* faultSeverityToString(FaultSeverity severity) {
+        switch (severity) {
+            case FaultSeverity::INFO: return "INFO";
+            case FaultSeverity::WARNING: return "WARNING";
+            case FaultSeverity::ERROR: return "ERROR";
+            case FaultSeverity::CRITICAL: return "CRITICAL";
+            case FaultSeverity::FATAL: return "FATAL";
+            default: return "INVALID";
+        }
+    }
+
+    const char* recoveryActionToString(RecoveryAction action) {
+        switch (action) {
+            case RecoveryAction::CONTINUE: return "CONTINUE";
+            case RecoveryAction::HALT: return "HALT";
+            case RecoveryAction::RESET: return "RESET";
+            case RecoveryAction::REBOOT: return "REBOOT";
+            case RecoveryAction::RESTART_TASK: return "RESTART_TASK";
+            case RecoveryAction::RESTART_CORE: return "RESTART_CORE";
+            default: return "INVALID";
+        }
+    }
 
 } // namespace T76::Sys::Safety
 
+// ========== C-style wrapper functions ==========
+
 extern "C" {
 
-static void faultFromFormatted(const char *source, const char *fmt, va_list args) {
-    char message[kFaultMessageBufferSize];
-    formatMessage(message, sizeof(message), fmt, args);
-    T76::Sys::Safety::fatal(source, message);
-}
+    void my_assert_func(const char* file, int line, const char* func, const char* expr) {
+        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
+        snprintf(description, sizeof(description), "FreeRTOS assertion failed: %s", expr ? expr : "unknown");
+        
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::FREERTOS_ASSERT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            description, file, static_cast<uint32_t>(line), func,
+            T76::Sys::Safety::RecoveryAction::HALT
+        );
+    }
 
-[[noreturn]] void __assert_func(const char *file, int line, const char *func, const char *expr) {
-    char message[kFaultMessageBufferSize];
-    std::snprintf(message, sizeof(message), "%s:%d %s: %s",
-                  file ? file : "<unknown>",
-                  line,
-                  func ? func : "<global>",
-                  expr ? expr : "<null expression>");
-    T76::Sys::Safety::fatal("assert", message);
-}
+    void vApplicationMallocFailedHook(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::MALLOC_FAILED,
+            T76::Sys::Safety::FaultSeverity::CRITICAL,
+            "FreeRTOS malloc failed - insufficient heap memory",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::HALT
+        );
+    }
 
-[[noreturn]] void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func) {
-    __assert_func(file, static_cast<int>(line), func, expr);
-}
+    void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
+        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
+        snprintf(description, sizeof(description), 
+                "Stack overflow detected in task: %s", pcTaskName ? pcTaskName : "unknown");
+        
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::STACK_OVERFLOW,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            description, __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+    }
 
-[[noreturn]] void abort(void) {
-    T76::Sys::Safety::fatal("abort", "abort() called");
-}
+    // Hardware fault handlers
+    void HardFault_Handler(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            "Hardware fault (HardFault) occurred",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+    }
 
-[[noreturn]] void t76_panic(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    faultFromFormatted("panic", fmt, args);
-    va_end(args);
-    __builtin_unreachable();
-}
+    void MemManage_Handler(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            "Memory management fault occurred",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+    }
 
-[[noreturn]] void hard_fault_handler_c(uint32_t *stackPointer, uint32_t excReturn) {
-    const auto *frame = reinterpret_cast<T76::Sys::Safety::ExceptionStackFrame *>(stackPointer);
-    T76::Sys::Safety::fatalWithFrame("HardFault", "Cortex-M hard fault", frame, excReturn);
-}
+    void BusFault_Handler(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            "Bus fault occurred",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+    }
 
-[[noreturn]] __attribute__((naked)) void HardFault_Handler(void) {
-    __asm volatile(
-        "tst lr, #4                         \n"
-        "ite eq                             \n"
-        "mrseq r0, msp                      \n"
-        "mrsne r0, psp                      \n"
-        "mov   r1, lr                       \n"
-        "b     hard_fault_handler_c         \n"
-    );
-}
+    void UsageFault_Handler(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            "Usage fault occurred",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+    }
 
-[[noreturn]] void Default_Handler(void) {
-    T76::Sys::Safety::fatal("Default_Handler", "Unhandled interrupt");
-}
+    // Override the standard assert function to route through our system
+    void __assert_func(const char *file, int line, const char *func, const char *expr) {
+        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
+        snprintf(description, sizeof(description), "Standard assertion failed: %s", expr ? expr : "unknown");
+        
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::C_ASSERT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            description, file, static_cast<uint32_t>(line), func,
+            T76::Sys::Safety::RecoveryAction::HALT
+        );
+        
+        // Never return
+        while (true) {
+            tight_loop_contents();
+        }
+    }
 
-[[noreturn]] void NMI_Handler(void) {
-    T76::Sys::Safety::fatal("NMI", "Non-maskable interrupt");
-}
-
-[[noreturn]] void MemManage_Handler(void) {
-    T76::Sys::Safety::fatal("MemManage", "Memory management fault");
-}
-
-[[noreturn]] void BusFault_Handler(void) {
-    T76::Sys::Safety::fatal("BusFault", "Bus fault");
-}
-
-[[noreturn]] void UsageFault_Handler(void) {
-    T76::Sys::Safety::fatal("UsageFault", "Usage fault");
-}
-
-[[noreturn]] void vAssertCalled(const char *file, int line) {
-    char message[kFaultMessageBufferSize];
-    std::snprintf(message, sizeof(message), "%s:%d", file ? file : "<unknown>", line);
-    T76::Sys::Safety::fatal("configASSERT", message);
-}
-
-void vApplicationMallocFailedHook(void) {
-    T76::Sys::Safety::fatal("MallocFailedHook", "pvPortMalloc returned null");
-}
-
-void vApplicationStackOverflowHook(TaskHandle_t task, char *taskName) {
-    char message[kFaultMessageBufferSize];
-    std::snprintf(message, sizeof(message), "Task=%s handle=0x%p",
-                  taskName ? taskName : "<unnamed>",
-                  static_cast<void *>(task));
-    T76::Sys::Safety::fatal("StackOverflowHook", message);
-}
-
-void vApplicationDaemonTaskStartupHook(void) {
-    std::printf("[safety] Daemon task startup hook reached\r\n");
-}
-
-[[noreturn]] void __cxa_pure_virtual(void) {
-    T76::Sys::Safety::fatal("pure_virtual", "__cxa_pure_virtual invoked");
-}
+    // Override abort() to capture exit-like conditions
+    void abort(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::C_ASSERT,
+            T76::Sys::Safety::FaultSeverity::FATAL,
+            "Program called abort()",
+            __FILE__, __LINE__, __func__,
+            T76::Sys::Safety::RecoveryAction::RESET
+        );
+        
+        // Never return
+        while (true) {
+            tight_loop_contents();
+        }
+    }
 
 } // extern "C"

@@ -80,6 +80,7 @@ target_link_libraries(t76-instrument-core
         FreeRTOS-Kernel-Heap4
         pico_cyw43_arch_none
         pico_status_led
+        pico_multicore
 )
 
 pico_add_extra_outputs(t76-instrument-core)

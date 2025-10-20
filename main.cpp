@@ -5,8 +5,6 @@
  * 
  */
 
-#define T76_USE_GLOBAL_LOCKS
-
 #include <stdio.h>
 #include <cstdlib>
 
@@ -19,6 +17,7 @@
 #include <pico/status_led.h>
 
 #include <lib/sys/memory.hpp>
+#include <lib/sys/safety.hpp>
 
 /**
  * @brief Task to handle TinyUSB events. This will run on core 0 because it is
@@ -53,6 +52,7 @@ void printTask(void *params) {
         snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         delete[] ptr;
+        
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
@@ -63,6 +63,9 @@ void printTask(void *params) {
  * 
  */
 void core1Task() {
+    // Initialize safety system on Core 1
+    T76::Sys::Safety::safetyInit();
+    
     int count = 0;
 
     while (true) {
@@ -70,7 +73,10 @@ void core1Task() {
         snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         free(ptr);
+        char *ptr2 = (char *) malloc(10000);
+        ptr2[0] = 0; // Prevent optimization
         status_led_set_state(!status_led_get_state());
+        
         sleep_ms(100);
     }
 }
@@ -81,6 +87,9 @@ void core1Task() {
  * @return int Exit code (not used)
  */
 int main() {
+    // Initialize safety system first on Core 0
+    T76::Sys::Safety::safetyInit();
+    
     // Initialize memory management system
     T76::Sys::Memory::memoryInit();
 
