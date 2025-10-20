@@ -300,14 +300,12 @@ namespace T76::Sys::Safety {
     }
 
     uint32_t getFaultCount() {
-        if (!g_shared_fault_system || !g_safety_spinlock) {
+        if (!g_shared_fault_system) {
             return g_local_fault_count;
         }
 
-        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
-        uint32_t count = g_shared_fault_system->fault_count;
-        spin_unlock(g_safety_spinlock, saved_irq);
-        return count;
+        // Reading a single 32-bit value is atomic on ARM, no spinlock needed
+        return g_shared_fault_system->fault_count;
     }
 
     void clearFaultHistory() {
@@ -325,14 +323,12 @@ namespace T76::Sys::Safety {
     }
 
     bool isInFaultState() {
-        if (!g_shared_fault_system || !g_safety_spinlock) {
+        if (!g_shared_fault_system) {
             return false;
         }
 
-        uint32_t saved_irq = spin_lock_blocking(g_safety_spinlock);
-        bool in_fault = g_shared_fault_system->is_in_fault_state;
-        spin_unlock(g_safety_spinlock, saved_irq);
-        return in_fault;
+        // Reading a single boolean is atomic, no spinlock needed
+        return g_shared_fault_system->is_in_fault_state;
     }
 
     const char* faultTypeToString(FaultType type) {
