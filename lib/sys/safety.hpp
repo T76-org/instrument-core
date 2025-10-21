@@ -105,21 +105,13 @@ namespace T76::Sys::Safety {
         RESOURCE_EXHAUSTED,       ///< System resource exhaustion
     };
 
-    /**
-     * @brief Enumeration of recovery actions
-     */
-    enum class RecoveryAction : uint8_t {
-        HALT = 0,         ///< Halt execution, wait for external intervention
-        RESET,            ///< Perform immediate system reset
-    };
-
     // Maximum number of safing functions that can be registered
     #define T76_SAFETY_MAX_SAFING_FUNCTIONS 8
 
     /**
      * @brief Function pointer type for safing functions
      * 
-     * Safing functions are called before system halt or reset to put the system
+     * Safing functions are called before system reset to put the system
      * into a safe state. They should:
      * - Execute quickly and efficiently
      * - Be fault-tolerant (not cause additional faults)
@@ -146,7 +138,6 @@ namespace T76::Sys::Safety {
         uint32_t timestamp;                                 ///< System tick when fault occurred
         uint32_t coreId;                                    ///< Core ID where fault occurred (0 or 1)
         FaultType type;                                     ///< Type of fault
-        RecoveryAction recoveryAction;                      ///< Recommended recovery action
         uint32_t lineNumber;                                ///< Source code line number
         char fileName[T76_SAFETY_MAX_FILE_NAME_LEN];                   ///< Source file name
         char functionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];           ///< Function name where fault occurred
@@ -218,14 +209,12 @@ namespace T76::Sys::Safety {
      * @param file Source file where fault occurred
      * @param line Line number where fault occurred
      * @param function Function name where fault occurred
-     * @param recoveryAction Recommended recovery action
      */
     void reportFault(FaultType type, 
                     const char* description,
                     const char* file,
                     uint32_t line,
-                    const char* function,
-                    RecoveryAction recoveryAction);
+                    const char* function);
 
     /**
      * @brief Check if the system is in a fault state
@@ -252,18 +241,10 @@ namespace T76::Sys::Safety {
     const char* faultTypeToString(FaultType type);
 
     /**
-     * @brief Convert recovery action to string representation
-     * 
-     * @param action Recovery action to convert
-     * @return Static string representation of the recovery action
-     */
-    const char* recoveryActionToString(RecoveryAction action);
-
-    /**
-     * @brief Register a safing function to be called before system halt/reset
+     * @brief Register a safing function to be called before system reset
      * 
      * Safing functions are executed in the order they were registered when
-     * a fault occurs, before the final recovery action (halt or reset).
+     * a fault occurs, before the system reset.
      * 
      * @param safingFunc Function to register
      * @return SafingResult indicating success or failure reason

@@ -195,14 +195,12 @@ namespace T76::Sys::Safety {
      * @param file Source file name
      * @param line Line number
      * @param function Function name
-     * @param recoveryAction Recovery action to take
      */
     static inline void populateFaultInfo(FaultType type,
                                         const char* description,
                                         const char* file,
                                         uint32_t line,
-                                        const char* function,
-                                        RecoveryAction recoveryAction) {
+                                        const char* function) {
         
         if (!gSharedFaultSystem) return;
         
@@ -213,7 +211,6 @@ namespace T76::Sys::Safety {
         gSharedFaultSystem->lastFaultInfo.timestamp = to_ms_since_boot(get_absolute_time());
         gSharedFaultSystem->lastFaultInfo.coreId = get_core_num();
         gSharedFaultSystem->lastFaultInfo.type = type;
-        gSharedFaultSystem->lastFaultInfo.recoveryAction = recoveryAction;
         gSharedFaultSystem->lastFaultInfo.lineNumber = line;
 
         // Copy strings safely using our minimal function
@@ -370,8 +367,7 @@ namespace T76::Sys::Safety {
                      const char* description,
                      const char* file,
                      uint32_t line,
-                     const char* function,
-                     RecoveryAction recoveryAction) {
+                     const char* function) {
         
         // Ensure shared memory is available
         if (!gSharedFaultSystem) {
@@ -383,7 +379,7 @@ namespace T76::Sys::Safety {
         }
 
         // Populate fault information directly in shared memory
-        populateFaultInfo(type, description, file, line, function, recoveryAction);
+        populateFaultInfo(type, description, file, line, function);
         
         // Handle fault with minimal overhead
         handleFault();
@@ -441,14 +437,6 @@ namespace T76::Sys::Safety {
             case FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
             case FaultType::INVALID_STATE: return "INVALID_STATE";
             case FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
-            default: return "INVALID";
-        }
-    }
-
-    const char* recoveryActionToString(RecoveryAction action) {
-        switch (action) {
-            case RecoveryAction::HALT: return "HALT";
-            case RecoveryAction::RESET: return "RESET";
             default: return "INVALID";
         }
     }

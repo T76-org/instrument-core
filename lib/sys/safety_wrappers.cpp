@@ -37,8 +37,7 @@ extern "C" {
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::FREERTOS_ASSERT,
-            gWrapperDescription, file, static_cast<uint32_t>(line), func,
-            T76::Sys::Safety::RecoveryAction::HALT
+            gWrapperDescription, file, static_cast<uint32_t>(line), func
         );
     }
 
@@ -46,8 +45,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::MALLOC_FAILED,
             "FreeRTOS malloc failed - insufficient heap memory",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::HALT
+            __FILE__, __LINE__, __func__
         );
     }
 
@@ -66,8 +64,7 @@ extern "C" {
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::STACK_OVERFLOW,
-            gWrapperDescription, __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            gWrapperDescription, __FILE__, __LINE__, __func__
         );
     }
 
@@ -76,8 +73,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Hardware fault (HardFault) occurred",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            __FILE__, __LINE__, __func__
         );
     }
 
@@ -85,8 +81,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Memory management fault occurred",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            __FILE__, __LINE__, __func__
         );
     }
 
@@ -94,8 +89,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Bus fault occurred",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            __FILE__, __LINE__, __func__
         );
     }
 
@@ -103,8 +97,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Usage fault occurred",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            __FILE__, __LINE__, __func__
         );
     }
 
@@ -124,8 +117,7 @@ extern "C" {
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
-            gWrapperDescription, file, static_cast<uint32_t>(line), func,
-            T76::Sys::Safety::RecoveryAction::HALT
+            gWrapperDescription, file, static_cast<uint32_t>(line), func
         );
         
         // Never return
@@ -139,8 +131,7 @@ extern "C" {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
             "Program called abort()",
-            __FILE__, __LINE__, __func__,
-            T76::Sys::Safety::RecoveryAction::RESET
+            __FILE__, __LINE__, __func__
         );
         
         // Never return

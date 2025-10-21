@@ -44,16 +44,15 @@ The safety system is designed for the RP2350's dual-core architecture:
 
 Inter-core communication uses atomic operations and spinlocks for thread-safe operation.
 
-### Recovery Strategies
+### Recovery Strategy
 
-The system supports multiple recovery actions:
+The system uses a simple and reliable recovery strategy:
 
-- `HALT`: Stop execution, wait for external intervention  
-- `RESET`: Perform immediate system reset
+- **System Reset**: All faults result in an immediate system reset via watchdog
 
 ### Safing Functions
 
-The safety system supports registering "safing functions" that are automatically executed before system halt or reset. These functions allow subsystems to put themselves into safe states before the recovery action occurs.
+The safety system supports registering "safing functions" that are automatically executed before system reset. These functions allow subsystems to put themselves into safe states before the system is reset.
 
 **Key Features:**
 - Up to 8 safing functions can be registered

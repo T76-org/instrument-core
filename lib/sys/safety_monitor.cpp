@@ -52,7 +52,6 @@ namespace T76::Sys::SafetyMonitor {
         printf("Timestamp: %lu ms\n", faultInfo.timestamp);
         printf("Core: %lu\n", faultInfo.coreId);
         printf("Type: %s\n", Safety::faultTypeToString(faultInfo.type));
-        printf("Recovery: %s\n", Safety::recoveryActionToString(faultInfo.recoveryAction));
         printf("File: %s:%lu\n", faultInfo.fileName, faultInfo.lineNumber);
         printf("Function: %s\n", faultInfo.functionName);
         printf("Description: %s\n", faultInfo.description);
