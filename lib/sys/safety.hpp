@@ -113,6 +113,32 @@ namespace T76::Sys::Safety {
         RESET,            ///< Perform immediate system reset
     };
 
+    // Maximum number of safing functions that can be registered
+    #define T76_SAFETY_MAX_SAFING_FUNCTIONS 8
+
+    /**
+     * @brief Function pointer type for safing functions
+     * 
+     * Safing functions are called before system halt or reset to put the system
+     * into a safe state. They should:
+     * - Execute quickly and efficiently
+     * - Be fault-tolerant (not cause additional faults)
+     * - Put their subsystem into a safe state
+     * - Not rely on dynamic memory allocation
+     * - Use minimal stack space
+     */
+    typedef void (*SafingFunction)(void);
+
+    /**
+     * @brief Result codes for safing function operations
+     */
+    enum class SafingResult : uint8_t {
+        SUCCESS = 0,      ///< Operation completed successfully
+        FULL,             ///< Cannot register - table is full
+        NOT_FOUND,        ///< Function not found during deregistration
+        INVALID_PARAM,    ///< Invalid parameter provided
+    };
+
     /**
      * @brief Structure containing comprehensive fault information
      */
@@ -147,7 +173,12 @@ namespace T76::Sys::Safety {
         volatile bool isInFaultState;               ///< True if currently processing a fault
         volatile uint32_t lastFaultCore;            ///< Core ID of last fault
         FaultInfo lastFaultInfo;                    ///< Information about the last fault
-        uint32_t reserved[11];                      ///< Reserved for future use (increased from 9)
+        
+        // Safing function management
+        SafingFunction safingFunctions[T76_SAFETY_MAX_SAFING_FUNCTIONS]; ///< Array of registered safing functions
+        volatile uint32_t safingFunctionCount;      ///< Number of registered safing functions
+        
+        uint32_t reserved[1];                       ///< Reserved for future use (reduced to accommodate safing functions)
     };
 
 
@@ -227,6 +258,25 @@ namespace T76::Sys::Safety {
      * @return Static string representation of the recovery action
      */
     const char* recoveryActionToString(RecoveryAction action);
+
+    /**
+     * @brief Register a safing function to be called before system halt/reset
+     * 
+     * Safing functions are executed in the order they were registered when
+     * a fault occurs, before the final recovery action (halt or reset).
+     * 
+     * @param safingFunc Function to register
+     * @return SafingResult indicating success or failure reason
+     */
+    SafingResult registerSafingFunction(SafingFunction safingFunc);
+
+    /**
+     * @brief Deregister a previously registered safing function
+     * 
+     * @param safingFunc Function to deregister
+     * @return SafingResult indicating success or failure reason
+     */
+    SafingResult deregisterSafingFunction(SafingFunction safingFunc);
 
     /**
      * @brief Test function to trigger a fault with stack capture for validation

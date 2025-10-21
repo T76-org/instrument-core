@@ -48,12 +48,47 @@ Inter-core communication uses atomic operations and spinlocks for thread-safe op
 
 The system supports multiple recovery actions:
 
-- `CONTINUE`: Log fault and continue execution
-- `HALT`: Stop execution, wait for external intervention
+- `HALT`: Stop execution, wait for external intervention  
 - `RESET`: Perform immediate system reset
-- `REBOOT`: Reboot into recovery mode
-- `RESTART_TASK`: Restart affected FreeRTOS task
-- `RESTART_CORE`: Restart Core 1 (Core 0 resets system)
+
+### Safing Functions
+
+The safety system supports registering "safing functions" that are automatically executed before system halt or reset. These functions allow subsystems to put themselves into safe states before the recovery action occurs.
+
+**Key Features:**
+- Up to 8 safing functions can be registered
+- Functions are executed in registration order
+- Fault-tolerant execution (one failing function won't prevent others)
+- Thread-safe registration/deregistration
+- Minimal stack usage during execution
+
+**Safing Function Guidelines:**
+- **Execute quickly**: Complete as fast as possible
+- **Be fault-tolerant**: Don't cause additional faults
+- **Use minimal stack**: Avoid large local variables or deep call chains
+- **No dynamic allocation**: Use only static memory
+- **Put hardware in safe state**: Turn off motors, disable outputs, etc.
+
+**Example Safing Functions:**
+```cpp
+void motorControllerSafing() {
+    // Disable all motor outputs
+    setMotorPower(0);
+    disableMotorDrivers();
+}
+
+void ioSystemSafing() {
+    // Set critical outputs to safe states
+    setEmergencyStop(true);
+    turnOffHeaters();
+    closeValves();
+}
+
+void communicationSafing() {
+    // Send emergency shutdown message
+    broadcastEmergencyShutdown();
+}
+```
 
 ## Usage
 
@@ -120,6 +155,40 @@ if (T76::Sys::Safety::getLastFault(&last_fault)) {
 
 // Update watchdog (call regularly from main loops)
 T76::Sys::Safety::updateWatchdog();
+```
+
+### Safing Functions
+
+```cpp
+// Define safing functions for different subsystems
+void motorSafing() {
+    // Put motors in safe state
+    setAllMotorsPower(0);
+    disableMotorDrivers();
+}
+
+void ioSafing() {
+    // Set outputs to safe states  
+    setEmergencyOutputs();
+    disableHeaters();
+}
+
+// Register safing functions during initialization
+void initializeSubsystems() {
+    // Register safing functions
+    auto result1 = T76::Sys::Safety::registerSafingFunction(motorSafing);
+    auto result2 = T76::Sys::Safety::registerSafingFunction(ioSafing);
+    
+    if (result1 != T76::Sys::Safety::SafingResult::SUCCESS) {
+        // Handle registration failure
+        printf("Failed to register motor safing function\n");
+    }
+}
+
+// Deregister if needed (e.g., when subsystem is disabled)
+void shutdownMotorSystem() {
+    T76::Sys::Safety::deregisterSafingFunction(motorSafing);
+}
 ```
 
 ### FreeRTOS Integration
