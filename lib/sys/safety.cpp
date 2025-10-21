@@ -11,6 +11,7 @@
 
 // Minimal includes to reduce dependencies and stack usage
 #include <cstring>
+#include <cstdio>
 
 // FreeRTOS includes
 #include <FreeRTOS.h>
@@ -21,6 +22,7 @@
 #include <pico/time.h>
 #include <hardware/sync/spin_lock.h>
 #include <hardware/watchdog.h>
+#include <hardware/irq.h>
 
 namespace T76::Sys::Safety {
     /**
@@ -88,6 +90,14 @@ namespace T76::Sys::Safety {
      * fault handling to minimize stack usage in critical error paths.
      */
     static char gStaticDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
+
+    /**
+     * @brief Watchdog initialization state
+     * 
+     * Tracks whether the Core 1 watchdog has been initialized to prevent
+     * multiple initialization attempts.
+     */
+    static bool gWatchdogInitialized = false;
 
     /**
      * @brief Minimal string copy function optimized for safety system
@@ -381,6 +391,8 @@ namespace T76::Sys::Safety {
         return executedCount;
     }
 
+
+
     /**
      * @brief Core fault handling function - minimal stack usage
      * 
@@ -389,9 +401,10 @@ namespace T76::Sys::Safety {
      * 
      * Sequence of operations:
      * 1. Mark system as being in fault state (for persistent tracking)
-     * 2. Execute all registered safing functions to put system in safe state
-     * 3. Allow brief time for pending output to complete
-     * 4. Trigger immediate system reset via watchdog
+     * 2. Set safety system reset flag to distinguish from watchdog timeout
+     * 3. Execute all registered safing functions to put system in safe state
+     * 4. Allow brief time for pending output to complete
+     * 5. Trigger immediate system reset via watchdog
      * 
      * This function never returns - it always results in system reset.
      * The fault information will persist in uninitialized memory for
@@ -407,12 +420,14 @@ namespace T76::Sys::Safety {
             uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
             gSharedFaultSystem->isInFaultState = true;
             gSharedFaultSystem->lastFaultCore = get_core_num();
+            gSharedFaultSystem->safetySystemReset = true; // Mark as safety system reset
             
             // Store current fault in fault history
             if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
                 uint32_t index = gSharedFaultSystem->rebootCount;
                 // Copy the entire fault info structure to history
                 gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
+                gSharedFaultSystem->rebootCount++;
             }
             
             spin_unlock(gSafetySpinlock, savedIrq);
@@ -452,33 +467,61 @@ namespace T76::Sys::Safety {
             gSafetySpinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
         }
 
-        // Check reboot count before proceeding with normal initialization
-        if (gSharedFaultSystem && gSharedFaultSystem->magic == FAULT_SYSTEM_MAGIC) {
-            if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
-                // Too many consecutive reboots - enter safety monitor to display fault history
-                SafetyMonitor::runSafetyMonitor();
-            }
-            // Increment reboot count for this boot cycle
-            gSharedFaultSystem->rebootCount++;
-            gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
-        }
+        // Store watchdog reboot status for later processing
+        bool wasWatchdogReboot = watchdog_caused_reboot();
+        bool isFirstBoot = false;
 
         // Check if already initialized by other core
         if (gSharedFaultSystem->magic != FAULT_SYSTEM_MAGIC) {
             // First initialization
+            isFirstBoot = true;
             memset(gSharedFaultSystem, 0, sizeof(SharedFaultSystem));
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
             gSharedFaultSystem->version = 1;
             gSharedFaultSystem->isInFaultState = false;
             gSharedFaultSystem->safingFunctionCount = 0;
-            gSharedFaultSystem->rebootCount = 1; // First boot
+            gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
+            gSharedFaultSystem->safetySystemReset = false;
             
             // Initialize safing function array to null pointers
             for (uint32_t i = 0; i < T76_SAFETY_MAX_SAFING_FUNCTIONS; i++) {
                 gSharedFaultSystem->safingFunctions[i] = nullptr;
             }
         }
+
+        // Only check for watchdog reboot if this is NOT the first boot
+        // On first boot, we can't trust the previous state information
+        if (wasWatchdogReboot && !isFirstBoot) {
+            // Check if last reboot was caused by watchdog timeout (not safety system reset)
+            if (!gSharedFaultSystem->safetySystemReset) {
+                // This was a genuine watchdog timeout, not a safety system reset
+                // Create a watchdog timeout fault entry
+                populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
+                                "Hardware watchdog timeout - Core 1 may have hung",
+                                "system", 0, "watchdog");
+                gSharedFaultSystem->isInFaultState = true;
+                gSharedFaultSystem->lastFaultCore = 1; // Assume Core 1 since it's the one being protected
+                
+                // Manually add to fault history (like reportFault does but without immediate reset)
+                if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
+                    uint32_t index = gSharedFaultSystem->rebootCount;
+                    gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
+                    gSharedFaultSystem->rebootCount++;
+                }
+            }
+        }
+
+        // Clear the safety system reset flag for next boot
+        gSharedFaultSystem->safetySystemReset = false;
+        
+        // Check reboot count and handle safety monitor
+        if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
+            // Too many consecutive reboots - enter safety monitor to display fault history
+            SafetyMonitor::runSafetyMonitor();
+        }
+        
+        gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
 
         gSafetyInitialized = true;
     }
@@ -640,6 +683,30 @@ namespace T76::Sys::Safety {
 
         spin_unlock(gSafetySpinlock, savedIrq);
         return SafingResult::SUCCESS;
+    }
+
+    bool initCore1Watchdog() {
+        // Only allow initialization on Core 1
+        if (get_core_num() != 1) {
+            return false;
+        }
+
+        // Prevent multiple initialization
+        if (gWatchdogInitialized) {
+            return true; // Already initialized
+        }
+
+        // Initialize hardware watchdog with configured timeout
+        watchdog_enable(T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS, 1);
+
+        gWatchdogInitialized = true;
+        return true;
+    }
+
+    void feedWatchdog() {
+        if (gWatchdogInitialized) {
+            watchdog_update();
+        }
     }
 
 } // namespace T76::Sys::Safety

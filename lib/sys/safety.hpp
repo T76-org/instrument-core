@@ -76,6 +76,8 @@
 #define T76_SAFETY_MAX_SAFING_FUNCTIONS 8      ///< Maximum number of safing functions that can be registered
 #define T76_SAFETY_MAX_REBOOTS 3               ///< Maximum number of consecutive reboots before entering safety monitor
 
+// Core 1 watchdog configuration
+#define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000    ///< Default watchdog timeout (5 seconds)
 
 namespace T76::Sys::Safety {
     /**
@@ -106,6 +108,7 @@ namespace T76::Sys::Safety {
         MEMORY_CORRUPTION,        ///< Detected memory corruption
         INVALID_STATE,            ///< Invalid system state detected
         RESOURCE_EXHAUSTED,       ///< System resource exhaustion
+        WATCHDOG_TIMEOUT,         ///< Hardware watchdog timeout (Core 1 hang)
     };
 
     /**
@@ -170,9 +173,12 @@ namespace T76::Sys::Safety {
         volatile uint32_t safingFunctionCount;      ///< Number of registered safing functions
         
         // Reboot limiting and fault history
-        volatile uint32_t rebootCount;              ///< Number of consecutive reboots (also fault history count)
+        volatile uint32_t rebootCount;              ///< Number of consecutive fault-related reboots
         FaultInfo faultHistory[T76_SAFETY_MAX_REBOOTS]; ///< History of faults leading to reboots
         volatile uint32_t lastBootTimestamp;        ///< Timestamp of last successful boot for timeout detection
+        
+        // Watchdog management
+        volatile bool safetySystemReset;            ///< True if last reset was triggered by safety system
     };
 
 
@@ -245,5 +251,36 @@ namespace T76::Sys::Safety {
      * running successfully for several minutes without faults.
      */
     void resetRebootCounter();
+
+    /**
+     * @brief Initialize Core 1 watchdog protection
+     * 
+     * Sets up hardware watchdog for Core 1 protection using the configured timeout
+     * (T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS). The application must call 
+     * feedWatchdog() periodically to prevent watchdog timeout.
+     * 
+     * @note Should only be called on Core 1
+     * @note Application must call feedWatchdog() regularly to prevent timeout
+     * @note Recommended to call feedWatchdog() at least every 50% of timeout interval
+     * @note Uses T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS for timeout value
+     * 
+     * @return true if watchdog was successfully initialized, false on error
+     */
+    bool initCore1Watchdog();
+
+    /**
+     * @brief Feed the watchdog to prevent timeout
+     * 
+     * Resets the watchdog timer. This function must be called periodically
+     * by the application to prevent watchdog timeout and system reset.
+     * 
+     * @note Should be called at least every 50% of the configured timeout interval
+     * @note Safe to call from any context (interrupt or main thread)
+     * @note Only effective if initCore1Watchdog() has been called first
+     */
+    void feedWatchdog();
+
+    // External declaration for shared fault system access from safety monitor
+    extern SharedFaultSystem* gSharedFaultSystem;
     
 } // namespace T76::Sys::Safety

@@ -52,6 +52,9 @@ void printTask(void *params) {
         snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         delete[] ptr;
+
+        // char *f = (char *)malloc(5000);
+        // f[0] = 0;
         
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
@@ -66,17 +69,27 @@ void core1Task() {
     // Initialize safety system on Core 1
     T76::Sys::Safety::safetyInit();
     
+    // Initialize Core 1 watchdog protection (5 second timeout)
+    if (!T76::Sys::Safety::initCore1Watchdog()) {
+        // Handle watchdog initialization failure
+        T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+                                     "Failed to initialize Core 1 watchdog",
+                                     __FILE__, __LINE__, __FUNCTION__);
+    }
+    
     int count = 0;
 
     while (true) {
+        // Feed the watchdog to prevent timeout
+        // T76::Sys::Safety::feedWatchdog();
+        
+        // Your application code here
         char *ptr = static_cast<char*>(malloc(320));
         snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
         fputs(ptr, stdout);
         free(ptr);
         status_led_set_state(!status_led_get_state());
         
-        char *ptr2 = (char *) malloc(10000);
-        ptr2[0] = 0; // Prevent optimization
         sleep_ms(100);
     }
 }

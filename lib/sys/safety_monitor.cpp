@@ -74,6 +74,7 @@ namespace T76::Sys {
                 case T76::Sys::Safety::FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
                 case T76::Sys::Safety::FaultType::INVALID_STATE: return "INVALID_STATE";
                 case T76::Sys::Safety::FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
+                case T76::Sys::Safety::FaultType::WATCHDOG_TIMEOUT: return "WATCHDOG_TIMEOUT";
                 default: return "INVALID";
             }
         }
@@ -137,7 +138,7 @@ namespace T76::Sys {
                 return;
             }
 
-            printf("Consecutive reboots: %lu (limit: %d)\n\n", 
+            printf("Consecutive faults: %lu (limit: %d)\n\n", 
                 Safety::gSharedFaultSystem->rebootCount, T76_SAFETY_MAX_REBOOTS);
 
             // Print each fault in the history
@@ -218,7 +219,7 @@ namespace T76::Sys {
         }
 
     } // namespace SafetyMonitor
-    
+
 } // namespace T76::Sys
 
 
