@@ -23,23 +23,70 @@
 #include <hardware/watchdog.h>
 
 namespace T76::Sys::Safety {
-    // Constants for shared memory magic numbers
-    constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570;    // "SYSTEM" in hex
+    /**
+     * @brief Magic number for fault system structure validation
+     * 
+     * This constant is used to validate that the shared memory structure
+     * has been properly initialized and is not corrupted.
+     */
+    constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570; 
 
-    // Place shared fault system in uninitialized RAM for persistence across resets
+    /**
+     * @brief Pointer to shared fault system in uninitialized memory
+     * 
+     * This points to the SharedFaultSystem structure placed in uninitialized
+     * memory that persists across system resets, allowing fault information
+     * to be preserved for analysis after reboot.
+     */
     static SharedFaultSystem* gSharedFaultSystem = nullptr;
+    
+    /**
+     * @brief Raw memory buffer for shared fault system
+     * 
+     * This buffer is placed in the .uninitialized_data section to ensure
+     * it persists across system resets. It's properly aligned for the
+     * SharedFaultSystem structure.
+     */
     static uint8_t gSharedMemory[sizeof(SharedFaultSystem)] __attribute__((section(".uninitialized_data"))) __attribute__((aligned(4)));
 
-    // Local fault state for each core
+    /**
+     * @brief Per-core initialization flag
+     * 
+     * Tracks whether the safety system has been initialized on this core.
+     * Prevents multiple initialization and ensures proper setup sequence.
+     */
     static bool gSafetyInitialized = false;
 
-    // Pico SDK spinlock instance for inter-core synchronization
+    /**
+     * @brief Inter-core synchronization spinlock
+     * 
+     * Provides thread-safe access to shared memory between both cores.
+     * Uses Pico SDK spinlock mechanism for reliable multi-core synchronization.
+     */
     static spin_lock_t* gSafetySpinlock = nullptr;
 
-
-    // Static buffers for string operations - no stack usage
+    /**
+     * @brief Static buffer for file names to avoid stack allocation
+     * 
+     * Pre-allocated buffer used for file name string operations during
+     * fault handling to minimize stack usage in critical error paths.
+     */
     static char gStaticFileName[T76_SAFETY_MAX_FILE_NAME_LEN];
+    
+    /**
+     * @brief Static buffer for function names to avoid stack allocation
+     * 
+     * Pre-allocated buffer used for function name string operations during
+     * fault handling to minimize stack usage in critical error paths.
+     */
     static char gStaticFunctionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];
+    
+    /**
+     * @brief Static buffer for fault descriptions to avoid stack allocation
+     * 
+     * Pre-allocated buffer used for fault description string operations during
+     * fault handling to minimize stack usage in critical error paths.
+     */
     static char gStaticDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
 
     /**
@@ -66,6 +113,19 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Get comprehensive stack information directly into global fault info
+     * 
+     * Captures detailed stack usage information at the time of fault, including:
+     * - Stack pointer position and type (Main/Process stack)
+     * - Stack usage percentage and remaining space
+     * - High water mark for stack monitoring
+     * 
+     * Works on both cores but has different accuracy levels:
+     * - Core 0: Full accuracy when in task context with FreeRTOS
+     * - Core 1: Estimated values based on current stack pointer
+     * - Interrupt context: Limited accuracy with estimation
+     * 
+     * Stack usage is calculated to help identify stack overflow conditions
+     * and optimize stack allocation in the system.
      */
     static inline void getStackInfo() {
         if (!gSharedFaultSystem) return;
@@ -146,6 +206,17 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Get heap statistics directly into global fault info
+     * 
+     * Captures current heap usage information including:
+     * - Free heap bytes available at time of fault
+     * - Minimum free heap bytes since system boot (high water mark)
+     * 
+     * Only available on Core 0 where FreeRTOS heap management is active.
+     * Core 1 running bare-metal code will show zero values as it doesn't
+     * use the FreeRTOS heap manager.
+     * 
+     * This information helps identify memory leaks and heap exhaustion
+     * conditions that may lead to system faults.
      */
     static inline void getHeapStats() {
         if (!gSharedFaultSystem) return;
@@ -163,6 +234,19 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Get task information directly into global fault info
+     * 
+     * Captures FreeRTOS task context information when available:
+     * - Task handle (unique identifier for the running task)
+     * - Task name for identification and debugging
+     * - Interrupt context detection via IPSR register
+     * - Interrupt number if fault occurred in interrupt handler
+     * 
+     * Only available on Core 0 in task context. Core 1 (bare-metal) and
+     * interrupt contexts will show default values. Interrupt detection
+     * works on both cores by examining the ARM Cortex-M IPSR register.
+     * 
+     * This information is crucial for identifying which task or interrupt
+     * was active when the fault occurred, enabling targeted debugging.
      */
     static inline void getTaskInfo() {
         if (!gSharedFaultSystem) return;
@@ -190,11 +274,26 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Populate fault info directly in shared memory - minimal stack usage
-     * @param type Fault type
-     * @param description Fault description
-     * @param file Source file name
-     * @param line Line number
-     * @param function Function name
+     * 
+     * Central function for capturing comprehensive fault information directly
+     * into the shared memory structure. Designed for minimal stack usage by
+     * operating directly on global memory without intermediate copies.
+     * 
+     * Captures all available fault context including:
+     * - Basic fault metadata (type, timestamp, core ID, location)
+     * - Source code location (file, function, line number)
+     * - System state (stack, heap, task information)
+     * - Hardware context (interrupt status, core identification)
+     * 
+     * @param type Fault type classification for categorization
+     * @param description Human-readable fault description for debugging
+     * @param file Source file name where fault occurred
+     * @param line Line number in source file where fault occurred
+     * @param function Function name where fault occurred
+     * 
+     * @note Uses safe string copying to prevent buffer overflows
+     * @note Calls helper functions to gather system state information
+     * @note Thread-safe through caller's spinlock management
      */
     static inline void populateFaultInfo(FaultType type,
                                         const char* description,
@@ -259,6 +358,25 @@ namespace T76::Sys::Safety {
         return true;
     }
 
+    /**
+     * @brief Execute all registered safing functions before system reset
+     * 
+     * Safely executes all registered safing functions to put the system
+     * into a safe state before reset. Uses a local copy approach to
+     * minimize spinlock hold time while ensuring thread safety.
+     * 
+     * Process:
+     * 1. Quickly copy function pointers from shared memory to local array
+     * 2. Release spinlock to minimize interference with other operations
+     * 3. Execute each function sequentially in registration order
+     * 4. Count successful executions for potential debugging
+     * 
+     * @return Number of safing functions that were successfully executed
+     * 
+     * @note Does not handle exceptions - relies on safing functions being fault-tolerant
+     * @note Executes all functions even if one fails (no early termination)
+     * @note Uses minimal stack by avoiding dynamic allocations
+     */
     uint32_t executeSafingFunctions() {
         if (!gSharedFaultSystem || !gSafetySpinlock) {
             return 0;
@@ -290,6 +408,23 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Core fault handling function - minimal stack usage
+     * 
+     * Final stage of fault processing that prepares the system for recovery.
+     * Designed for maximum reliability with minimal stack and resource usage.
+     * 
+     * Sequence of operations:
+     * 1. Mark system as being in fault state (for persistent tracking)
+     * 2. Execute all registered safing functions to put system in safe state
+     * 3. Allow brief time for pending output to complete
+     * 4. Trigger immediate system reset via watchdog
+     * 
+     * This function never returns - it always results in system reset.
+     * The fault information will persist in uninitialized memory for
+     * analysis by the Safety Monitor on the next boot.
+     * 
+     * @note Uses busy-wait loops to avoid additional function call overhead
+     * @note Watchdog reset is more reliable than software reset mechanisms
+     * @note Thread-safe through spinlock protection of shared state
      */
     static inline void handleFault() {
         // Mark system as being in fault state
