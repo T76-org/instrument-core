@@ -38,7 +38,7 @@ namespace T76::Sys::Safety {
      * memory that persists across system resets, allowing fault information
      * to be preserved for analysis after reboot.
      */
-    static SharedFaultSystem* gSharedFaultSystem = nullptr;
+    SharedFaultSystem* gSharedFaultSystem = nullptr;
     
     /**
      * @brief Raw memory buffer for shared fault system
@@ -334,31 +334,6 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Check for persistent fault information from previous boot
-     * 
-     * @param fault_info Output parameter to receive fault information if found
-     * @return true if a persistent fault was detected, false otherwise
-     */
-    static bool checkForPersistentFault() {
-        if (!gSharedFaultSystem) {
-            return false;
-        }
-
-        // Check if the shared system is valid and contains fault information
-        if (gSharedFaultSystem->magic != FAULT_SYSTEM_MAGIC) {
-            return false;
-        }
-
-        // Check if we're in a fault state from a previous boot
-        if (!gSharedFaultSystem->isInFaultState) {
-            return false;
-        }
-
-        // Copy the fault information
-        return true;
-    }
-
-    /**
      * @brief Execute all registered safing functions before system reset
      * 
      * Safely executes all registered safing functions to put the system
@@ -432,6 +407,14 @@ namespace T76::Sys::Safety {
             uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
             gSharedFaultSystem->isInFaultState = true;
             gSharedFaultSystem->lastFaultCore = get_core_num();
+            
+            // Store current fault in fault history
+            if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
+                uint32_t index = gSharedFaultSystem->rebootCount;
+                // Copy the entire fault info structure to history
+                gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
+            }
+            
             spin_unlock(gSafetySpinlock, savedIrq);
         }
 
@@ -469,11 +452,15 @@ namespace T76::Sys::Safety {
             gSafetySpinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
         }
 
-        // Check if we are responding to a fault condition
-        if (checkForPersistentFault()) {
-            // Initialize the Safety Monitor - this will check for persistent faults
-            // and enter reporting mode if needed (function will not return in that case)
-            SafetyMonitor::runSafetyMonitor();
+        // Check reboot count before proceeding with normal initialization
+        if (gSharedFaultSystem && gSharedFaultSystem->magic == FAULT_SYSTEM_MAGIC) {
+            if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
+                // Too many consecutive reboots - enter safety monitor to display fault history
+                SafetyMonitor::runSafetyMonitor();
+            }
+            // Increment reboot count for this boot cycle
+            gSharedFaultSystem->rebootCount++;
+            gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
         }
 
         // Check if already initialized by other core
@@ -484,6 +471,8 @@ namespace T76::Sys::Safety {
             gSharedFaultSystem->version = 1;
             gSharedFaultSystem->isInFaultState = false;
             gSharedFaultSystem->safingFunctionCount = 0;
+            gSharedFaultSystem->rebootCount = 1; // First boot
+            gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
             
             // Initialize safing function array to null pointers
             for (uint32_t i = 0; i < T76_SAFETY_MAX_SAFING_FUNCTIONS; i++) {
@@ -550,6 +539,37 @@ namespace T76::Sys::Safety {
         spin_unlock(gSafetySpinlock, savedIrq);
     }
 
+    /**
+     * @brief Reset the consecutive reboot counter
+     * 
+     * This function should be called by the application after successful
+     * initialization or operation to reset the consecutive reboot counter.
+     * This prevents the system from entering safety monitor mode due to
+     * a series of unrelated reboots.
+     * 
+     * @details The function:
+     * - Resets rebootCount to 0
+     * - Clears the fault history array
+     * - Updates the last boot timestamp
+     * 
+     * @note Thread-safe through spinlock protection
+     * @note Should be called after successful system operation/initialization
+     */
+    void resetRebootCounter() {
+        if (!gSharedFaultSystem || !gSafetySpinlock) {
+            return;
+        }
+
+        uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
+        
+        // Reset reboot count and clear fault history
+        gSharedFaultSystem->rebootCount = 0;
+        memset(gSharedFaultSystem->faultHistory, 0, sizeof(gSharedFaultSystem->faultHistory));
+        gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
+        
+        spin_unlock(gSafetySpinlock, savedIrq);
+    }
+
     bool isInFaultState() {
         if (!gSharedFaultSystem) {
             return false;
@@ -557,23 +577,6 @@ namespace T76::Sys::Safety {
 
         // Reading a single boolean is atomic, no spinlock needed
         return gSharedFaultSystem->isInFaultState;
-    }
-
-    const char* faultTypeToString(FaultType type) {
-        switch (type) {
-            case FaultType::UNKNOWN: return "UNKNOWN";
-            case FaultType::FREERTOS_ASSERT: return "FREERTOS_ASSERT";
-            case FaultType::STACK_OVERFLOW: return "STACK_OVERFLOW";
-            case FaultType::MALLOC_FAILED: return "MALLOC_FAILED";
-            case FaultType::C_ASSERT: return "C_ASSERT";
-            case FaultType::PICO_HARD_ASSERT: return "PICO_HARD_ASSERT";
-            case FaultType::HARDWARE_FAULT: return "HARDWARE_FAULT";
-            case FaultType::INTERCORE_FAULT: return "INTERCORE_FAULT";
-            case FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
-            case FaultType::INVALID_STATE: return "INVALID_STATE";
-            case FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
-            default: return "INVALID";
-        }
     }
 
     SafingResult registerSafingFunction(SafingFunction safingFunc) {

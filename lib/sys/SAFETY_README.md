@@ -4,9 +4,17 @@
 
 The T76 Comprehensive Safety System provides robust fault detection, reporting, and recovery capabilities for the RP2350 dual-core platform running FreeRTOS on Core 0 and bare-metal code on Core 1.
 
-## Features
+**Key Features:**
+- Comprehensive fault detection and reporting
+- Inter-core fault communication
+- Persistent fault information across reboots
+- Configurable safing functions for safe shutdown
+- Reboot limiting to prevent infinite reboot loops
+- Minimal stack usage (<48 bytes) and static memory allocation
+- Safety Monitor for persistent fault reporting
 
-### Fault Detection
+## Fault Detection
+
 The system catches and handles the following types of faults:
 
 1. **FreeRTOS Faults**
@@ -35,7 +43,7 @@ The system catches and handles the following types of faults:
    - Watchdog timeout protection
    - System state monitoring
 
-### Multi-Core Support
+## Multi-Core Support
 
 The safety system is designed for the RP2350's dual-core architecture:
 
@@ -44,294 +52,242 @@ The safety system is designed for the RP2350's dual-core architecture:
 
 Inter-core communication uses atomic operations and spinlocks for thread-safe operation.
 
-### Recovery Strategy
+## Recovery Strategy
 
-The system uses a simple and reliable recovery strategy:
+The system uses a simplified and reliable recovery strategy:
 
-- **System Reset**: All faults result in an immediate system reset via watchdog
+1. **Fault Detection**: When a fault occurs, comprehensive information is captured
+2. **Safing Functions**: Execute registered safing functions to put system in safe state
+3. **System Reset**: Perform immediate watchdog-based system reset
+4. **Reboot Limiting**: Track consecutive reboots to prevent infinite loops
+5. **Safety Monitor**: Display fault information when reboot limit is exceeded
+
+### Reboot Limiting
+
+The system tracks consecutive reboots and enters Safety Monitor mode when a configurable limit is reached:
+
+- **Default Limit**: 3 consecutive reboots (`T76_SAFETY_MAX_REBOOTS`)
+- **Fault History**: Stores fault information for each reboot
+- **Safety Monitor**: Displays all faults when limit is exceeded
+- **Reset Counter**: Application can reset counter after successful operation
+
+## Quick Start
+
+### 1. Initialization
+
+```cpp
+#include "safety.hpp"
+
+void main() {
+    // Initialize safety system early in boot process
+    T76::Sys::Safety::safetyInit();
+    
+    // Your application initialization...
+}
+```
+
+### 2. Basic Fault Reporting
+
+```cpp
+// Simple fault with minimal information
+T76::Sys::Safety::reportFault(__FILE__, __LINE__, __FUNCTION__, 
+                              T76::Sys::Safety::FaultType::INVALID_STATE,
+                              "System entered invalid state");
+
+// The function does not return - system will reset after safing functions
+```
+
+### 3. Safing Functions
+
+Register functions to execute before system reset:
+
+```cpp
+void shutdownPeripherals() {
+    // Turn off motors, close valves, etc.
+    // Keep it simple and fast - no complex operations
+}
+
+void main() {
+    T76::Sys::Safety::safetyInit();
+    
+    // Register safing function
+    T76::Sys::Safety::registerSafingFunction(shutdownPeripherals);
+    
+    // Your application...
+}
+```
+
+### 4. Reset Reboot Counter
+
+After successful operation, reset the reboot counter:
+
+```cpp
+void applicationMain() {
+    // System initialization and startup...
+    
+    // After successful operation (e.g., after 5 minutes of runtime)
+    T76::Sys::Safety::resetRebootCounter();
+    
+    // Continue normal operation...
+}
+```
+
+## API Reference
+
+### Core Functions
+
+#### `void safetyInit()`
+Initialize the safety system. Must be called early in system initialization.
+
+#### `void reportFault(const char* fileName, uint32_t lineNumber, const char* functionName, FaultType faultType, const char* description)`
+Report a fault and trigger system reset after safing functions.
+
+**Parameters:**
+- `fileName`: Source file where fault occurred
+- `lineNumber`: Line number in source file
+- `functionName`: Function name where fault occurred
+- `faultType`: Type of fault (see FaultType enum)
+- `description`: Human-readable description
+
+#### `bool getLastFault(FaultInfo* faultInfo)`
+Retrieve information about the last fault.
+
+**Returns:** `true` if valid fault information was retrieved
+
+#### `void clearFaultHistory()`
+Clear stored fault information.
+
+#### `bool isInFaultState()`
+Check if system is currently in a fault state.
 
 ### Safing Functions
 
-The safety system supports registering "safing functions" that are automatically executed before system reset. These functions allow subsystems to put themselves into safe states before the system is reset.
+#### `SafingResult registerSafingFunction(SafingFunction safingFunc)`
+Register a function to execute before system reset.
 
-**Key Features:**
-- Up to 8 safing functions can be registered
-- Functions are executed in registration order
-- Fault-tolerant execution (one failing function won't prevent others)
-- Thread-safe registration/deregistration
-- Minimal stack usage during execution
+**Returns:** `SafingResult` indicating success or failure
 
-**Safing Function Guidelines:**
-- **Execute quickly**: Complete as fast as possible
-- **Be fault-tolerant**: Don't cause additional faults
-- **Use minimal stack**: Avoid large local variables or deep call chains
-- **No dynamic allocation**: Use only static memory
-- **Put hardware in safe state**: Turn off motors, disable outputs, etc.
+#### `SafingResult deregisterSafingFunction(SafingFunction safingFunc)`
+Remove a previously registered safing function.
 
-**Example Safing Functions:**
-```cpp
-void motorControllerSafing() {
-    // Disable all motor outputs
-    setMotorPower(0);
-    disableMotorDrivers();
-}
+### Reboot Limiting
 
-void ioSystemSafing() {
-    // Set critical outputs to safe states
-    setEmergencyStop(true);
-    turnOffHeaters();
-    closeValves();
-}
+#### `void resetRebootCounter()`
+Reset the consecutive reboot counter after successful operation.
 
-void communicationSafing() {
-    // Send emergency shutdown message
-    broadcastEmergencyShutdown();
-}
-```
-
-## Usage
-
-### Initialization
+## Fault Types
 
 ```cpp
-#include <lib/sys/safety.hpp>
-
-// In main() on Core 0
-T76::Sys::Safety::safetyInit(true, 5000); // Enable watchdog, 5-second timeout
-
-// In Core 1 entry point
-T76::Sys::Safety::safetyInit(false, 0); // Core 1 doesn't manage watchdog
-```
-
-### Basic Fault Reporting
-
-```cpp
-// Using macros (recommended)
-CRITICAL_FAULT("Something went critically wrong");
-FATAL_FAULT("System must reset");
-
-// Using function calls
-REPORT_FAULT(FaultType::CUSTOM_FAULT, FaultSeverity::ERROR, 
-           "Custom error description", RecoveryAction::HALT);
-
-// Direct function call
-T76::Sys::Safety::reportFault(
-    FaultType::MEMORY_CORRUPTION,
-    FaultSeverity::CRITICAL,
-    "Buffer overflow detected",
-    __FILE__, __LINE__, __func__,
-    RecoveryAction::RESET
-);
-```
-
-### Custom Fault Handlers
-
-```cpp
-bool myFaultHandler(const FaultInfo& fault_info) {
-    printf("Custom handler: %s\n", fault_info.description);
-    
-    // Return true if handled, false for default handling
-    return fault_info.severity <= FaultSeverity::WARNING;
-}
-
-// Register the handler
-T76::Sys::Safety::registerFaultHandler(myFaultHandler);
-```
-
-### System Monitoring
-
-```cpp
-// Check fault status
-if (T76::Sys::Safety::isInFaultState()) {
-    // System is currently processing a fault
-}
-
-// Get last fault information
-FaultInfo last_fault;
-if (T76::Sys::Safety::getLastFault(&last_fault)) {
-    printf("Last fault: %s\n", last_fault.description);
-}
-
-// Update watchdog (call regularly from main loops)
-T76::Sys::Safety::updateWatchdog();
-```
-
-### Safing Functions
-
-```cpp
-// Define safing functions for different subsystems
-void motorSafing() {
-    // Put motors in safe state
-    setAllMotorsPower(0);
-    disableMotorDrivers();
-}
-
-void ioSafing() {
-    // Set outputs to safe states  
-    setEmergencyOutputs();
-    disableHeaters();
-}
-
-// Register safing functions during initialization
-void initializeSubsystems() {
-    // Register safing functions
-    auto result1 = T76::Sys::Safety::registerSafingFunction(motorSafing);
-    auto result2 = T76::Sys::Safety::registerSafingFunction(ioSafing);
-    
-    if (result1 != T76::Sys::Safety::SafingResult::SUCCESS) {
-        // Handle registration failure
-        printf("Failed to register motor safing function\n");
-    }
-}
-
-// Deregister if needed (e.g., when subsystem is disabled)
-void shutdownMotorSystem() {
-    T76::Sys::Safety::deregisterSafingFunction(motorSafing);
-}
-```
-
-### FreeRTOS Integration
-
-The system automatically integrates with FreeRTOS:
-
-```cpp
-// FreeRTOSConfig.h configuration:
-#define configASSERT(x) ((x) ? (void)0 : my_assert_func(__FILE__, __LINE__, __func__, #x))
-#define configUSE_MALLOC_FAILED_HOOK 1
-#define configCHECK_FOR_STACK_OVERFLOW 2
-
-// Hook functions are automatically provided by the safety system
-```
-
-## Fault Information Structure
-
-Each fault captures comprehensive system state:
-
-```cpp
-struct FaultInfo {
-    uint32_t timestamp;           // When fault occurred
-    uint32_t core_id;            // Which core (0 or 1)
-    FaultType type;              // Type of fault
-    FaultSeverity severity;      // Severity level
-    RecoveryAction recovery_action; // Recommended action
-    
-    // Location information
-    uint32_t line_number;
-    char file_name[128];
-    char function_name[64];
-    char description[128];
-    
-    // System state
-    uint32_t stack_pointer;
-    uint32_t program_counter;
-    uint32_t link_register;
-    bool is_in_interrupt;
-    uint32_t interrupt_number;
-    
-    // Memory information
-    uint32_t heap_free_bytes;
-    uint32_t min_heap_free_bytes;
-    
-    // Task information (if applicable)
-    uint32_t task_handle;
-    char task_name[configMAX_TASK_NAME_LEN];
-    
-    // Metadata
-    uint32_t crc32;              // For integrity checking
+enum class FaultType : uint8_t {
+    UNKNOWN = 0,
+    FREERTOS_ASSERT,          // FreeRTOS configASSERT failure
+    STACK_OVERFLOW,           // FreeRTOS stack overflow detection
+    MALLOC_FAILED,            // FreeRTOS malloc failure
+    C_ASSERT,                 // Standard C assert() failure
+    PICO_HARD_ASSERT,         // Pico SDK hard_assert failure
+    HARDWARE_FAULT,           // Hardware exception (HardFault, etc.)
+    INTERCORE_FAULT,          // Inter-core communication failure
+    MEMORY_CORRUPTION,        // Detected memory corruption
+    INVALID_STATE,            // Invalid system state detected
+    RESOURCE_EXHAUSTED,       // System resource exhaustion
 };
 ```
 
 ## Configuration
 
-### Watchdog Timer
-
+### Reboot Limiting
 ```cpp
-// Enable with custom timeout
-T76::Sys::Safety::safetyInit(true, 10000); // 10-second timeout
-
-// Disable watchdog
-T76::Sys::Safety::safetyInit(false, 0);
-
-// Update watchdog regularly
-void mainLoop() {
-    while (true) {
-        // ... application code ...
-        T76::Sys::Safety::updateWatchdog();
-        // ... more application code ...
-    }
-}
+#define T76_SAFETY_MAX_REBOOTS 3  // Maximum consecutive reboots before entering safety monitor
 ```
 
-### Memory Requirements
+### Safing Functions
+```cpp
+#define T76_SAFETY_MAX_SAFING_FUNCTIONS 8  // Maximum number of registered safing functions
+```
 
-- Shared memory structure: ~1KB
-- Per-fault information: ~500 bytes
-- Code size: ~8-10KB (depending on optimization)
+### String Limits
+```cpp
+#define T76_SAFETY_MAX_FILE_NAME_LEN 32
+#define T76_SAFETY_MAX_FUNCTION_NAME_LEN 32  
+#define T76_SAFETY_MAX_FAULT_DESC_LEN 64
+```
+
+## Safety Monitor
+
+When the reboot limit is exceeded, the system enters Safety Monitor mode:
+
+- **Reboot Limit Trigger**: Only activates when `T76_SAFETY_MAX_REBOOTS` consecutive reboots occur
+- **Fault History Display**: Shows all faults that led to the reboot limit
+- **Visual Indication**: Status LED blinks to indicate fault state
+- **System Halt**: Prevents further reboot attempts
+- **Manual Reset Required**: System remains in this mode until manually reset
+
+### Sample Output
+
+When the reboot limit is exceeded, the Safety Monitor displays:
+
+```
+=========================================
+   REBOOT LIMIT EXCEEDED
+   MULTIPLE CONSECUTIVE FAULTS DETECTED
+=========================================
+
+Consecutive reboots: 3 (limit: 3)
+
+--- FAULT #1 ---
+=== SYSTEM FAULT DETECTED ===
+Timestamp: 15420 ms
+Core: 0
+Type: STACK_OVERFLOW
+File: main.cpp:156
+Function: processingTask
+Description: Task stack overflow detected
+...
+
+--- FAULT #2 ---
+...
+
+REBOOT LIMIT EXCEEDED - System Halted
+Consecutive faults: 3 (limit: 3)
+Manual reset required to clear fault state.
+```
+
+## Performance Characteristics
+
+### Stack Usage
+The safety system is optimized for minimal stack usage:
+- `reportFault()`: ~24 bytes
+- `populateFaultInfo()`: ~12 bytes  
+- `handleFault()`: ~8 bytes
+- **Total**: ~48 bytes maximum
+
+### Memory Usage
+- **Shared Memory**: ~2KB persistent storage
+- **Static Allocation**: No dynamic memory allocation
+- **Cross-Reset Persistence**: Fault data survives system resets
 
 ## Best Practices
 
-1. **Initialize Early**: Call `safetyInit()` as early as possible in system startup
-2. **Update Watchdog**: Call `updateWatchdog()` regularly from main loops
-3. **Use Macros**: Use `CRITICAL_FAULT()` and `FATAL_FAULT()` macros for convenience
-4. **Custom Handlers**: Implement custom handlers for application-specific recovery
-5. **Monitor Regularly**: Check system state periodically
-6. **Test Recovery**: Test different recovery strategies during development
-
-## Thread Safety
-
-The safety system is designed to be thread-safe across both cores:
-
-- Atomic operations for shared state
-- Spinlocks for critical sections
-- Memory barriers for consistency
-- Interrupt-safe operation
-
-## Performance Impact
-
-The safety system is designed for minimal performance impact:
-
-- Fast-path operations use atomic instructions
-- Fault reporting has controlled overhead
-- Watchdog updates are lightweight
-- Shared memory access is optimized
-
-## Debugging
-
-Enable verbose fault reporting by modifying the `printFaultInfo()` function in `safety.cpp` to include additional debug information.
-
-## Integration with Other Systems
-
-The safety system integrates cleanly with:
-
-- FreeRTOS kernel and tasks
-- Memory management system
-- Hardware abstraction layers
-- Custom application frameworks
-
-## Examples
-
-See `safety_demo.cpp` for comprehensive usage examples including:
-
-- Basic fault reporting
-- Custom fault handlers
-- Multi-core fault handling
-- System monitoring
-- Recovery strategies
+1. **Early Initialization**: Call `safetyInit()` as early as possible
+2. **Safing Functions**: Keep safing functions simple and fast
+3. **Reset Counter**: Reset reboot counter after successful operation periods
+4. **Descriptive Faults**: Provide clear, concise fault descriptions
+5. **Test Fault Paths**: Regularly test fault detection and recovery
 
 ## Limitations
 
-1. Core 1 cannot restart Core 0 (system reset required)
-2. Watchdog timer managed only by Core 0
-3. FreeRTOS-specific features only available on Core 0
-4. Hardware fault handlers require proper vector table setup
-5. Some recovery actions may not be possible in all contexts
+1. **Reboot Limit**: System requires manual reset when reboot limit is exceeded
+2. **Safing Function Count**: Limited to 8 registered safing functions
+3. **String Lengths**: Fault descriptions limited to 64 characters
+4. **Memory Persistence**: Requires .uninitialized_data section support
+5. **Single Recovery**: Only supports reset recovery (no in-place recovery)
 
-## Future Enhancements
+## Testing
 
-Potential future improvements:
+Use the provided test function to validate the system:
 
-1. Persistent fault logging across resets
-2. Network-based fault reporting
-3. Advanced fault prediction
-4. Performance profiling integration
-5. Remote debugging support
+```cpp
+T76::Sys::Safety::testStackCapture(); // Triggers controlled fault for testing
+```
+
+This will cause a system reset and allow you to verify fault capture and Safety Monitor operation.

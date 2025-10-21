@@ -73,6 +73,9 @@
 #define T76_SAFETY_MAX_FAULT_DESC_LEN 128      ///< Max fault description length
 #define T76_SAFETY_MAX_FUNCTION_NAME_LEN 64    ///< Max function name length
 #define T76_SAFETY_MAX_FILE_NAME_LEN 128       ///< Max file name length
+#define T76_SAFETY_MAX_SAFING_FUNCTIONS 8      ///< Maximum number of safing functions that can be registered
+#define T76_SAFETY_MAX_REBOOTS 3               ///< Maximum number of consecutive reboots before entering safety monitor
+
 
 namespace T76::Sys::Safety {
     /**
@@ -105,9 +108,6 @@ namespace T76::Sys::Safety {
         RESOURCE_EXHAUSTED,       ///< System resource exhaustion
     };
 
-    // Maximum number of safing functions that can be registered
-    #define T76_SAFETY_MAX_SAFING_FUNCTIONS 8
-
     /**
      * @brief Function pointer type for safing functions
      * 
@@ -135,21 +135,21 @@ namespace T76::Sys::Safety {
      * @brief Structure containing comprehensive fault information
      */
     struct FaultInfo {
-        uint32_t timestamp;                                 ///< System tick when fault occurred
-        uint32_t coreId;                                    ///< Core ID where fault occurred (0 or 1)
-        FaultType type;                                     ///< Type of fault
-        uint32_t lineNumber;                                ///< Source code line number
-        char fileName[T76_SAFETY_MAX_FILE_NAME_LEN];                   ///< Source file name
-        char functionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];           ///< Function name where fault occurred
-        char description[T76_SAFETY_MAX_FAULT_DESC_LEN];               ///< Human-readable fault description
-        uint32_t taskHandle;                                ///< FreeRTOS task handle (if applicable)
-        char taskName[configMAX_TASK_NAME_LEN];              ///< FreeRTOS task name (if applicable)
-        uint32_t faultSpecificData[4];                      ///< Additional fault-specific data
-        uint32_t heapFreeBytes;                             ///< Available heap at time of fault
-        uint32_t minHeapFreeBytes;                          ///< Minimum heap free since boot
-        bool isInInterrupt;                                 ///< True if fault occurred in interrupt context
-        uint32_t interruptNumber;                           ///< Interrupt number (if in interrupt)
-        StackInfo stackInfo;                                ///< Stack information at time of fault
+        uint32_t timestamp;                                     ///< System tick when fault occurred
+        uint32_t coreId;                                        ///< Core ID where fault occurred (0 or 1)
+        FaultType type;                                         ///< Type of fault
+        uint32_t lineNumber;                                    ///< Source code line number
+        char fileName[T76_SAFETY_MAX_FILE_NAME_LEN];            ///< Source file name
+        char functionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];    ///< Function name where fault occurred
+        char description[T76_SAFETY_MAX_FAULT_DESC_LEN];        ///< Human-readable fault description
+        uint32_t taskHandle;                                    ///< FreeRTOS task handle (if applicable)
+        char taskName[configMAX_TASK_NAME_LEN];                 ///< FreeRTOS task name (if applicable)
+        uint32_t faultSpecificData[4];                          ///< Additional fault-specific data
+        uint32_t heapFreeBytes;                                 ///< Available heap at time of fault
+        uint32_t minHeapFreeBytes;                              ///< Minimum heap free since boot
+        bool isInInterrupt;                                     ///< True if fault occurred in interrupt context
+        uint32_t interruptNumber;                               ///< Interrupt number (if in interrupt)
+        StackInfo stackInfo;                                    ///< Stack information at time of fault
     };
 
     /**
@@ -169,7 +169,10 @@ namespace T76::Sys::Safety {
         SafingFunction safingFunctions[T76_SAFETY_MAX_SAFING_FUNCTIONS]; ///< Array of registered safing functions
         volatile uint32_t safingFunctionCount;      ///< Number of registered safing functions
         
-        uint32_t reserved[1];                       ///< Reserved for future use (reduced to accommodate safing functions)
+        // Reboot limiting and fault history
+        volatile uint32_t rebootCount;              ///< Number of consecutive reboots (also fault history count)
+        FaultInfo faultHistory[T76_SAFETY_MAX_REBOOTS]; ///< History of faults leading to reboots
+        volatile uint32_t lastBootTimestamp;        ///< Timestamp of last successful boot for timeout detection
     };
 
 
@@ -224,34 +227,6 @@ namespace T76::Sys::Safety {
     bool isInFaultState();
 
     /**
-     * @brief Print fault information to console
-     * 
-     * NOTE: This function is intentionally minimal in the core safety system
-     * to avoid including printf and increasing stack usage. The actual printing
-     * implementation is in the Safety Monitor module which has printf available.
-     */
-    void printFaultInfo();
-
-    /**
-     * @brief Convert fault type to string representation
-     * 
-     * @param type Fault type to convert
-     * @return Static string representation of the fault type
-     */
-    const char* faultTypeToString(FaultType type);
-
-    /**
-     * @brief Register a safing function to be called before system reset
-     * 
-     * Safing functions are executed in the order they were registered when
-     * a fault occurs, before the system reset.
-     * 
-     * @param safingFunc Function to register
-     * @return SafingResult indicating success or failure reason
-     */
-    SafingResult registerSafingFunction(SafingFunction safingFunc);
-
-    /**
      * @brief Deregister a previously registered safing function
      * 
      * @param safingFunc Function to deregister
@@ -260,14 +235,15 @@ namespace T76::Sys::Safety {
     SafingResult deregisterSafingFunction(SafingFunction safingFunc);
 
     /**
-     * @brief Test function to trigger a fault with stack capture for validation
+     * @brief Reset the reboot counter after successful operation
      * 
-     * This function is for testing purposes only - it will cause a system reset.
-     * It creates a controlled fault condition to test the stack capture functionality.
-     * The captured stack information will be available through the Safety Monitor
-     * on the next boot cycle.
+     * Should be called by the application after a period of successful
+     * operation to reset the consecutive reboot counter. This prevents
+     * the system from entering safety monitor mode due to old faults.
+     * 
+     * Typical usage: Call this function after the system has been
+     * running successfully for several minutes without faults.
      */
-    void testStackCapture();
-
+    void resetRebootCounter();
     
 } // namespace T76::Sys::Safety
