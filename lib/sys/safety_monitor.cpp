@@ -100,14 +100,6 @@ namespace T76::Sys::SafetyMonitor {
         printf("   PERSISTENT FAULT DETECTED\n");
         printf("=====================================\n\n");
 
-        // Check if we're in a fault state first (minimal stack usage)
-        if (!Safety::isInFaultState()) {
-            printf("ERROR: No fault state detected!\n");
-            while (true) {
-                vTaskDelay(1000 / portTICK_PERIOD_MS);
-            }
-        }
-
         // Only create FaultInfo structure once we know there's a fault
         T76::Sys::Safety::FaultInfo faultInfo;
         if (!Safety::getLastFault(&faultInfo)) {
@@ -117,20 +109,15 @@ namespace T76::Sys::SafetyMonitor {
             }
         }
 
-        // Report the fault information repeatedly forever
-        int reportCount = 0;
-        
         while (true) {
             // Toggle status LED to indicate fault state
             status_led_set_state(!status_led_get_state());
             
-            printf("--- SAFETY MONITOR REPORT #%d ---\n", reportCount + 1);
             printFaultInfoToConsole(faultInfo);
             printf("Safety Monitor will continue reporting indefinitely...\n");
             printf("Manual reset required to clear fault state.\n\n");
             
             vTaskDelay(1000 / portTICK_PERIOD_MS); // Wait 1 second
-            reportCount++;
         }
     }
 

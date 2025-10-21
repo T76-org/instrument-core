@@ -136,6 +136,22 @@ namespace T76::Sys::Safety {
     };
 
     /**
+     * @brief Shared memory structure for inter-core fault communication
+     * 
+     * This structure is placed in a shared memory region accessible by both cores.
+     * It uses atomic operations and memory barriers to ensure thread safety.
+     */
+    struct SharedFaultSystem {
+        volatile uint32_t magic;                    ///< Magic number for structure validation
+        volatile uint32_t version;                  ///< Structure version for compatibility
+        volatile bool isInFaultState;               ///< True if currently processing a fault
+        volatile uint32_t lastFaultCore;            ///< Core ID of last fault
+        FaultInfo lastFaultInfo;                    ///< Information about the last fault
+        uint32_t reserved[11];                      ///< Reserved for future use (increased from 9)
+    };
+
+
+    /**
      * @brief Initialize the safety system
      * 
      * This function must be called early in system initialization, before

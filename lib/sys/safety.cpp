@@ -26,21 +26,6 @@ namespace T76::Sys::Safety {
     // Constants for shared memory magic numbers
     constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570;    // "SYSTEM" in hex
 
-    /**
-     * @brief Shared memory structure for inter-core fault communication
-     * 
-     * This structure is placed in a shared memory region accessible by both cores.
-     * It uses atomic operations and memory barriers to ensure thread safety.
-     */
-    struct SharedFaultSystem {
-        volatile uint32_t magic;                    ///< Magic number for structure validation
-        volatile uint32_t version;                  ///< Structure version for compatibility
-        volatile bool isInFaultState;               ///< True if currently processing a fault
-        volatile uint32_t lastFaultCore;            ///< Core ID of last fault
-        FaultInfo lastFaultInfo;                    ///< Information about the last fault
-        uint32_t reserved[11];                      ///< Reserved for future use (increased from 9)
-    };
-
     // Place shared fault system in uninitialized RAM for persistence across resets
     static SharedFaultSystem* gSharedFaultSystem = nullptr;
     static uint8_t gSharedMemory[sizeof(SharedFaultSystem)] __attribute__((section(".uninitialized_data"))) __attribute__((aligned(4)));
