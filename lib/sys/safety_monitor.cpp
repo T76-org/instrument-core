@@ -45,16 +45,72 @@ namespace T76::Sys::SafetyMonitor {
     }
 
     /**
+     * @brief Print fault information using printf (only available in Safety Monitor)
+     */
+    static void printFaultInfoToConsole(const T76::Sys::Safety::FaultInfo& faultInfo) {
+        printf("\n=== SYSTEM FAULT DETECTED ===\n");
+        printf("Timestamp: %lu ms\n", faultInfo.timestamp);
+        printf("Core: %lu\n", faultInfo.coreId);
+        printf("Type: %s\n", Safety::faultTypeToString(faultInfo.type));
+        printf("Recovery: %s\n", Safety::recoveryActionToString(faultInfo.recoveryAction));
+        printf("File: %s:%lu\n", faultInfo.fileName, faultInfo.lineNumber);
+        printf("Function: %s\n", faultInfo.functionName);
+        printf("Description: %s\n", faultInfo.description);
+
+        if (faultInfo.taskHandle != 0) {
+            printf("Task: %s (0x%08lX)\n", faultInfo.taskName, faultInfo.taskHandle);
+        }
+
+        if (faultInfo.isInInterrupt) {
+            printf("Interrupt Context: %lu\n", faultInfo.interruptNumber);
+        }
+
+        if (faultInfo.heapFreeBytes > 0) {
+            printf("Heap Free: %lu bytes\n", faultInfo.heapFreeBytes);
+            printf("Min Heap Free: %lu bytes\n", faultInfo.minHeapFreeBytes);
+        }
+
+        // Print comprehensive stack information
+        printf("\n--- Stack Information ---\n");
+        if (faultInfo.stackInfo.isValidStackInfo) {
+            printf("Stack Size: %lu bytes\n", faultInfo.stackInfo.stackSize);
+            printf("Stack Used: %lu bytes\n", faultInfo.stackInfo.stackUsed);
+            printf("Stack Remaining: %lu bytes\n", faultInfo.stackInfo.stackRemaining);
+            printf("Stack High Water Mark: %lu bytes\n", faultInfo.stackInfo.stackHighWaterMark);
+            printf("Stack Usage: %u%%\n", faultInfo.stackInfo.stackUsagePercent);
+            printf("Stack Type: %s\n", faultInfo.stackInfo.isMainStack ? "Main (MSP)" : "Process (PSP)");
+        } else {
+            printf("Stack Type: %s\n", faultInfo.stackInfo.isMainStack ? "Main (MSP)" : "Process (PSP)");
+            printf("Stack Usage: %u%% (estimated)\n", faultInfo.stackInfo.stackUsagePercent);
+            printf("Note: Limited stack info (interrupt/Core1 context)\n");
+        }
+
+        printf("Fault Count: %lu\n", faultInfo.faultCount);
+        printf("==============================\n\n");
+    }
+
+    /**
      * @brief FreeRTOS task for continuous fault reporting
      */
     static void faultReporterTask(void *param) {
-        T76::Sys::Safety::FaultInfo faultInfo = *(T76::Sys::Safety::FaultInfo*)param;
+        (void)param; // Parameter not needed, we'll get fault info from safety system
         
         printf("\n\n");
         printf("=====================================\n");
         printf("   SAFETY MONITOR ACTIVE\n");
         printf("   PERSISTENT FAULT DETECTED\n");
         printf("=====================================\n\n");
+
+        // Get fault information from safety system
+        T76::Sys::Safety::FaultInfo faultInfo;
+        bool hasFaultInfo = Safety::getLastFault(faultInfo);
+        
+        if (!hasFaultInfo) {
+            printf("ERROR: No fault information available!\n");
+            while (true) {
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
 
         // Report the fault information repeatedly forever
         int reportCount = 0;
@@ -64,7 +120,7 @@ namespace T76::Sys::SafetyMonitor {
             status_led_set_state(!status_led_get_state());
             
             printf("--- SAFETY MONITOR REPORT #%d ---\n", reportCount + 1);
-            Safety::printFaultInfo();
+            printFaultInfoToConsole(faultInfo);
             printf("Safety Monitor will continue reporting indefinitely...\n");
             printf("Manual reset required to clear fault state.\n\n");
             
@@ -93,7 +149,7 @@ namespace T76::Sys::SafetyMonitor {
         xTaskCreate(
             faultReporterTask,
             "SafetyMonitor_Reporter",
-            512,  // Increased stack size for fault reporting
+            256,  // Reduced stack size since we're using minimal stack design
             nullptr,
             2,    // Higher priority for fault reporting
             nullptr

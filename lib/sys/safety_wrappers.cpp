@@ -5,26 +5,39 @@
  * This file contains all the C-style wrapper functions that integrate
  * the safety system with FreeRTOS hooks, hardware fault handlers,
  * and standard C library functions.
+ * 
+ * Optimized for minimal stack usage and static memory allocation.
  */
 
 #include "safety.hpp"
-#include <cstdio>
 #include <cstring>
 #include "pico/stdlib.h"
 #include "FreeRTOS.h"
 #include "task.h"
+
+// Static buffers for string operations to avoid stack usage
+static char gWrapperDescription[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
 
 // ========== C-style wrapper functions ==========
 
 extern "C" {
 
     void my_assert_func(const char* file, int line, const char* func, const char* expr) {
-        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
-        snprintf(description, sizeof(description), "FreeRTOS assertion failed: %s", expr ? expr : "unknown");
+        // Use static buffer to avoid stack allocation
+        const char* desc_start = "FreeRTOS assertion failed: ";
+        size_t desc_len = strlen(desc_start);
+        size_t remaining = sizeof(gWrapperDescription) - desc_len - 1;
+        
+        // Manual string concatenation to avoid snprintf stack usage
+        strcpy(gWrapperDescription, desc_start);
+        if (expr && remaining > 0) {
+            strncpy(gWrapperDescription + desc_len, expr, remaining);
+            gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
+        }
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::FREERTOS_ASSERT,
-            description, file, static_cast<uint32_t>(line), func,
+            gWrapperDescription, file, static_cast<uint32_t>(line), func,
             T76::Sys::Safety::RecoveryAction::HALT
         );
     }
@@ -39,13 +52,21 @@ extern "C" {
     }
 
     void vApplicationStackOverflowHook(TaskHandle_t xTask, char* pcTaskName) {
-        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
-        snprintf(description, sizeof(description), 
-                "Stack overflow detected in task: %s", pcTaskName ? pcTaskName : "unknown");
+        // Use static buffer to avoid stack allocation
+        const char* desc_start = "Stack overflow detected in task: ";
+        size_t desc_len = strlen(desc_start);
+        size_t remaining = sizeof(gWrapperDescription) - desc_len - 1;
+        
+        // Manual string concatenation to avoid snprintf stack usage
+        strcpy(gWrapperDescription, desc_start);
+        if (pcTaskName && remaining > 0) {
+            strncpy(gWrapperDescription + desc_len, pcTaskName, remaining);
+            gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
+        }
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::STACK_OVERFLOW,
-            description, __FILE__, __LINE__, __func__,
+            gWrapperDescription, __FILE__, __LINE__, __func__,
             T76::Sys::Safety::RecoveryAction::RESET
         );
     }
@@ -89,12 +110,21 @@ extern "C" {
 
     // Override the standard assert function to route through our system
     void __assert_func(const char *file, int line, const char *func, const char *expr) {
-        char description[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
-        snprintf(description, sizeof(description), "Standard assertion failed: %s", expr ? expr : "unknown");
+        // Use static buffer to avoid stack allocation
+        const char* desc_start = "Standard assertion failed: ";
+        size_t desc_len = strlen(desc_start);
+        size_t remaining = sizeof(gWrapperDescription) - desc_len - 1;
+        
+        // Manual string concatenation to avoid snprintf stack usage
+        strcpy(gWrapperDescription, desc_start);
+        if (expr && remaining > 0) {
+            strncpy(gWrapperDescription + desc_len, expr, remaining);
+            gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
+        }
         
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
-            description, file, static_cast<uint32_t>(line), func,
+            gWrapperDescription, file, static_cast<uint32_t>(line), func,
             T76::Sys::Safety::RecoveryAction::HALT
         );
         
