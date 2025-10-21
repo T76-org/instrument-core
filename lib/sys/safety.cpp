@@ -81,12 +81,13 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Get comprehensive stack information with minimal stack usage
-     * @param stackInfo Structure to populate with stack information
+     * @brief Get comprehensive stack information directly into global fault info
      */
-    static inline void getStackInfo(StackInfo& stackInfo) {
-        // Clear the structure
-        memset(&stackInfo, 0, sizeof(StackInfo));
+    static inline void getStackInfo() {
+        if (!gSharedFaultSystem) return;
+        
+        // Clear the structure directly in global memory
+        memset(&gSharedFaultSystem->lastFaultInfo.stackInfo, 0, sizeof(StackInfo));
         
         uint32_t currentSP;
         uint32_t mainStackPointer;
@@ -103,7 +104,7 @@ namespace T76::Sys::Safety {
         );
         
         // Determine which stack we're using
-        stackInfo.isMainStack = (currentSP == mainStackPointer);
+        gSharedFaultSystem->lastFaultInfo.stackInfo.isMainStack = (currentSP == mainStackPointer);
         
         // Get stack information based on context
         if (get_core_num() == 0) {
@@ -112,76 +113,78 @@ namespace T76::Sys::Safety {
             __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
             bool inInterrupt = (ipsr & 0x1FF) != 0;
             
-            if (!inInterrupt && !stackInfo.isMainStack) {
+            if (!inInterrupt && !gSharedFaultSystem->lastFaultInfo.stackInfo.isMainStack) {
                 // We're in a FreeRTOS task context using PSP
                 TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
                 if (currentTask != nullptr) {
                     // Get remaining stack space (high water mark)
                     UBaseType_t remainingWords = uxTaskGetStackHighWaterMark(currentTask);
-                    stackInfo.stackRemaining = remainingWords * sizeof(StackType_t);
-                    stackInfo.stackHighWaterMark = stackInfo.stackRemaining;
+                    gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = remainingWords * sizeof(StackType_t);
+                    gSharedFaultSystem->lastFaultInfo.stackInfo.stackHighWaterMark = gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining;
                     
                     // Calculate approximate stack information
-                    // We can't easily get the exact stack base without additional FreeRTOS config
-                    // so we'll estimate based on typical task stack sizes
                     uint32_t estimatedStackSize = 1024; // Conservative estimate
-                    if (stackInfo.stackRemaining < estimatedStackSize) {
-                        stackInfo.stackSize = estimatedStackSize;
-                        stackInfo.stackUsed = stackInfo.stackSize - stackInfo.stackRemaining;
+                    if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining < estimatedStackSize) {
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = estimatedStackSize;
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize - gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining;
                     } else {
                         // If remaining > estimated, adjust our estimate
-                        stackInfo.stackSize = stackInfo.stackRemaining + 256; // Add some used space estimate
-                        stackInfo.stackUsed = 256; // Conservative estimate
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining + 256; // Add some used space estimate
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = 256; // Conservative estimate
                     }
                     
                     // Calculate usage percentage
-                    if (stackInfo.stackSize > 0) {
-                        stackInfo.stackUsagePercent = (stackInfo.stackUsed * 100) / stackInfo.stackSize;
-                        if (stackInfo.stackUsagePercent > 100) stackInfo.stackUsagePercent = 100;
+                    if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize > 0) {
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = (gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed * 100) / gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
+                        if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent > 100) gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100;
                     }
                     
-                    stackInfo.isValidStackInfo = true;
+                    gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = true;
                 }
             } else {
                 // Interrupt context or main stack - use approximate values
-                stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
-                stackInfo.stackUsed = stackInfo.stackSize;
-                stackInfo.stackRemaining = 0; // Unknown in interrupt context
-                stackInfo.stackUsagePercent = 100; // Conservative estimate
-                stackInfo.isValidStackInfo = false; // Limited accuracy
+                gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
+                gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
+                gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in interrupt context
+                gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100; // Conservative estimate
+                gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy
             }
         } else {
             // Core 1 - Bare metal context
             // Use approximate stack information
-            stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
-            stackInfo.stackUsed = stackInfo.stackSize;
-            stackInfo.stackRemaining = 0; // Unknown in bare metal
-            stackInfo.stackUsagePercent = 100; // Conservative estimate
-            stackInfo.isValidStackInfo = false; // Limited accuracy on Core 1
+            gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
+            gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
+            gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in bare metal
+            gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100; // Conservative estimate
+            gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy on Core 1
         }
     }
 
     /**
-     * @brief Get heap statistics with minimal stack usage
+     * @brief Get heap statistics directly into global fault info
      */
-    static inline void getHeapStats(uint32_t& freeBytes, uint32_t& minFreeBytes) {
+    static inline void getHeapStats() {
+        if (!gSharedFaultSystem) return;
+        
         if (get_core_num() == 0) {
             // On Core 0, we can use FreeRTOS heap functions
-            freeBytes = xPortGetFreeHeapSize();
-            minFreeBytes = xPortGetMinimumEverFreeHeapSize();
+            gSharedFaultSystem->lastFaultInfo.heapFreeBytes = xPortGetFreeHeapSize();
+            gSharedFaultSystem->lastFaultInfo.minHeapFreeBytes = xPortGetMinimumEverFreeHeapSize();
         } else {
             // On Core 1, set to zero to indicate unavailable
-            freeBytes = 0;
-            minFreeBytes = 0;
+            gSharedFaultSystem->lastFaultInfo.heapFreeBytes = 0;
+            gSharedFaultSystem->lastFaultInfo.minHeapFreeBytes = 0;
         }
     }
 
     /**
-     * @brief Get task information with minimal stack usage
+     * @brief Get task information directly into global fault info
      */
-    static inline void getTaskInfo(uint32_t& taskHandle, char* taskName, size_t taskNameLen) {
-        taskHandle = 0;
-        taskName[0] = '\0';
+    static inline void getTaskInfo() {
+        if (!gSharedFaultSystem) return;
+        
+        gSharedFaultSystem->lastFaultInfo.taskHandle = 0;
+        gSharedFaultSystem->lastFaultInfo.taskName[0] = '\0';
 
         // Check if we're in an exception/interrupt by examining the IPSR
         uint32_t ipsr;
@@ -192,17 +195,17 @@ namespace T76::Sys::Safety {
             // Only available on Core 0 in task context
             TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
             if (currentTask != nullptr) {
-                taskHandle = reinterpret_cast<uint32_t>(currentTask);
+                gSharedFaultSystem->lastFaultInfo.taskHandle = reinterpret_cast<uint32_t>(currentTask);
                 const char* name = pcTaskGetName(currentTask);
                 if (name != nullptr) {
-                    safeStringCopy(taskName, name, taskNameLen);
+                    safeStringCopy(gSharedFaultSystem->lastFaultInfo.taskName, name, sizeof(gSharedFaultSystem->lastFaultInfo.taskName));
                 }
             }
         }
     }
 
     /**
-     * @brief Populate fault info directly in shared memory - no stack usage
+     * @brief Populate fault info directly in shared memory - minimal stack usage
      * @param type Fault type
      * @param description Fault description
      * @param file Source file name
@@ -217,46 +220,45 @@ namespace T76::Sys::Safety {
                                         const char* function,
                                         RecoveryAction recoveryAction) {
         
-        // Work directly with shared memory to avoid stack copies
-        FaultInfo* info = &gSharedFaultSystem->lastFaultInfo;
+        if (!gSharedFaultSystem) return;
         
-        // Clear the structure
-        memset(info, 0, sizeof(FaultInfo));
+        // Clear the structure directly in global memory
+        memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
 
-        // Fill in basic fault information
-        info->timestamp = to_ms_since_boot(get_absolute_time());
-        info->coreId = get_core_num();
-        info->type = type;
-        info->recoveryAction = recoveryAction;
-        info->lineNumber = line;
+        // Fill in basic fault information directly
+        gSharedFaultSystem->lastFaultInfo.timestamp = to_ms_since_boot(get_absolute_time());
+        gSharedFaultSystem->lastFaultInfo.coreId = get_core_num();
+        gSharedFaultSystem->lastFaultInfo.type = type;
+        gSharedFaultSystem->lastFaultInfo.recoveryAction = recoveryAction;
+        gSharedFaultSystem->lastFaultInfo.lineNumber = line;
 
         // Copy strings safely using our minimal function
-        safeStringCopy(info->fileName, file, sizeof(info->fileName));
-        safeStringCopy(info->functionName, function, sizeof(info->functionName));
-        safeStringCopy(info->description, description, sizeof(info->description));
+        safeStringCopy(gSharedFaultSystem->lastFaultInfo.fileName, file, sizeof(gSharedFaultSystem->lastFaultInfo.fileName));
+        safeStringCopy(gSharedFaultSystem->lastFaultInfo.functionName, function, sizeof(gSharedFaultSystem->lastFaultInfo.functionName));
+        safeStringCopy(gSharedFaultSystem->lastFaultInfo.description, description, sizeof(gSharedFaultSystem->lastFaultInfo.description));
 
         // Check if we're in an exception/interrupt by examining the IPSR
         uint32_t ipsr;
         __asm volatile ("MRS %0, IPSR" : "=r" (ipsr));
-        info->isInInterrupt = (ipsr & 0x1FF) != 0;
-        info->interruptNumber = info->isInInterrupt ? (ipsr & 0x1FF) : 0;
+        gSharedFaultSystem->lastFaultInfo.isInInterrupt = (ipsr & 0x1FF) != 0;
+        gSharedFaultSystem->lastFaultInfo.interruptNumber = gSharedFaultSystem->lastFaultInfo.isInInterrupt ? (ipsr & 0x1FF) : 0;
 
-        // Get heap statistics with minimal overhead
-        getHeapStats(info->heapFreeBytes, info->minHeapFreeBytes);
+        // Get heap statistics directly into global structure
+        getHeapStats();
 
-        // Get task information with minimal overhead
-        getTaskInfo(info->taskHandle, info->taskName, sizeof(info->taskName));
+        // Get task information directly into global structure  
+        getTaskInfo();
 
-        // Capture comprehensive stack information
-        getStackInfo(info->stackInfo);
+        // Capture comprehensive stack information directly into global structure
+        getStackInfo();
 
         // Update fault count atomically
         if (gSharedFaultSystem && gSafetySpinlock) {
             uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-            info->faultCount = ++gSharedFaultSystem->faultCount;
+            gSharedFaultSystem->lastFaultInfo.faultCount = ++gSharedFaultSystem->faultCount;
             spin_unlock(gSafetySpinlock, savedIrq);
         } else {
-            info->faultCount = ++gLocalFaultCount;
+            gSharedFaultSystem->lastFaultInfo.faultCount = ++gLocalFaultCount;
         }
     }
 
@@ -374,8 +376,8 @@ namespace T76::Sys::Safety {
         handleFault();
     }
 
-    bool getLastFault(FaultInfo& faultInfo) {
-        if (!gSharedFaultSystem || !gSafetySpinlock) {
+    bool getLastFault(FaultInfo* faultInfo) {
+        if (!faultInfo || !gSharedFaultSystem || !gSafetySpinlock) {
             return false;
         }
 
@@ -386,7 +388,7 @@ namespace T76::Sys::Safety {
             return false;
         }
 
-        faultInfo = gSharedFaultSystem->lastFaultInfo;
+        *faultInfo = gSharedFaultSystem->lastFaultInfo;
         spin_unlock(gSafetySpinlock, savedIrq);
         
         return true;

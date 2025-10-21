@@ -103,7 +103,7 @@ namespace T76::Sys::SafetyMonitor {
 
         // Get fault information from safety system
         T76::Sys::Safety::FaultInfo faultInfo;
-        bool hasFaultInfo = Safety::getLastFault(faultInfo);
+        bool hasFaultInfo = Safety::getLastFault(&faultInfo);
         
         if (!hasFaultInfo) {
             printf("ERROR: No fault information available!\n");

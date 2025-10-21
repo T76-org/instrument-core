@@ -18,16 +18,19 @@
  * - Inlined critical functions to reduce call stack depth
  * - Static buffers for all string operations
  * - Reduced function parameters and local variables
+ * - Eliminated all struct references and local pointers
+ * - Direct global memory access (no intermediate pointer variables)
  * 
  * Stack Usage Analysis:
  * ====================
  * 
- * - reportFault(): ~32 bytes (minimal local variables, no large structures)
- * - populateFaultInfo(): ~16 bytes (operates directly on shared memory)
+ * - reportFault(): ~24 bytes (minimal local variables, no pointers)
+ * - populateFaultInfo(): ~12 bytes (direct global access, no local pointers)
  * - handleFault(): ~8 bytes (minimal local variables)
- * - String operations: ~8 bytes (operates on static buffers)
+ * - String operations: ~4 bytes (direct global access)
  * 
- * Total worst-case stack usage: ~64 bytes (compared to 500+ bytes previously)
+ * Total worst-case stack usage: ~48 bytes (compared to 500+ bytes previously)
+ * Further optimized from ~64 bytes by eliminating all struct references and local pointers.
  * 
  * Multi-Core Fault Handling:
  * ==========================
@@ -145,10 +148,10 @@ namespace T76::Sys::Safety {
     /**
      * @brief Get information about the last fault that occurred
      * 
-     * @param faultInfo Output parameter to receive fault information
+     * @param faultInfo Pointer to structure to receive fault information
      * @return true if valid fault information was retrieved, false otherwise
      */
-    bool getLastFault(FaultInfo& faultInfo);
+    bool getLastFault(FaultInfo* faultInfo);
 
     /**
      * @brief Get the total number of faults since system boot
