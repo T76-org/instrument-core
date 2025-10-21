@@ -51,6 +51,7 @@ namespace T76::Sys::Safety {
     // Pico SDK spinlock instance for inter-core synchronization
     static spin_lock_t* gSafetySpinlock = nullptr;
 
+
     // Static buffers for string operations - no stack usage
     static char gStaticFileName[T76_SAFETY_MAX_FILE_NAME_LEN];
     static char gStaticFunctionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];
@@ -425,64 +426,6 @@ namespace T76::Sys::Safety {
             case RecoveryAction::HALT: return "HALT";
             case RecoveryAction::RESET: return "RESET";
             default: return "INVALID";
-        }
-    }
-
-    // ========== Safety Monitor Access Functions ==========
-
-    /**
-     * @brief Get access to the shared fault system for Safety Monitor
-     */
-    SharedFaultSystem* getSharedFaultSystem() {
-        return gSharedFaultSystem;
-    }
-
-    /**
-     * @brief Get the fault system magic number for Safety Monitor
-     */
-    uint32_t getFaultSystemMagic() {
-        return FAULT_SYSTEM_MAGIC;
-    }
-
-    /**
-     * @brief Print fault information to console (for Safety Monitor use only)
-     * This function is only called from the Safety Monitor which has printf available
-     */
-    void printFaultInfo() {
-        // This function is intentionally left for the Safety Monitor to implement
-        // The Safety Monitor will include <cstdio> and implement its own printing
-        // We cannot include printf here as it increases stack usage significantly
-        
-        // The Safety Monitor will access gSharedFaultSystem->lastFaultInfo directly
-        // and use its own printf implementation
-    }
-
-    /**
-     * @brief Test function to trigger a controlled fault with stack capture
-     */
-    void testStackCapture() {
-        // This function creates a deliberate stack overflow to test stack capture
-        // It's designed to be called from application code for testing purposes
-        
-        // Create some local variables to put data on the stack
-        volatile uint32_t testArray[64]; // 256 bytes on stack
-        for (int i = 0; i < 64; i++) {
-            testArray[i] = 0xDEADBEEF + i;
-        }
-        
-        // Report a test fault
-        reportFault(
-            FaultType::INVALID_STATE,
-            "Test fault for stack capture validation",
-            __FILE__,
-            __LINE__,
-            __func__,
-            RecoveryAction::RESET
-        );
-        
-        // This point should never be reached as reportFault causes a reset
-        while (true) {
-            tight_loop_contents();
         }
     }
 

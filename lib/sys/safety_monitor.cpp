@@ -100,12 +100,18 @@ namespace T76::Sys::SafetyMonitor {
         printf("   PERSISTENT FAULT DETECTED\n");
         printf("=====================================\n\n");
 
-        // Get fault information from safety system
+        // Check if we're in a fault state first (minimal stack usage)
+        if (!Safety::isInFaultState()) {
+            printf("ERROR: No fault state detected!\n");
+            while (true) {
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
+            }
+        }
+
+        // Only create FaultInfo structure once we know there's a fault
         T76::Sys::Safety::FaultInfo faultInfo;
-        bool hasFaultInfo = Safety::getLastFault(&faultInfo);
-        
-        if (!hasFaultInfo) {
-            printf("ERROR: No fault information available!\n");
+        if (!Safety::getLastFault(&faultInfo)) {
+            printf("ERROR: Could not retrieve fault information!\n");
             while (true) {
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
             }
