@@ -54,9 +54,9 @@ namespace T76::Sys::Safety {
     static spin_lock_t* gSafetySpinlock = nullptr;
 
     // Static buffers for string operations - no stack usage
-    static char gStaticFileName[MAX_FILE_NAME_LEN];
-    static char gStaticFunctionName[MAX_FUNCTION_NAME_LEN];
-    static char gStaticDescription[MAX_FAULT_DESC_LEN];
+    static char gStaticFileName[T76_SAFETY_MAX_FILE_NAME_LEN];
+    static char gStaticFunctionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];
+    static char gStaticDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
 
     /**
      * @brief Minimal string copy function optimized for safety system

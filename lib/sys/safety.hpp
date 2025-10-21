@@ -67,25 +67,11 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#define T76_MAX_TASK_NAME_LEN configMAX_TASK_NAME_LEN
+#define T76_SAFETY_MAX_FAULT_DESC_LEN 128      ///< Max fault description length
+#define T76_SAFETY_MAX_FUNCTION_NAME_LEN 64    ///< Max function name length
+#define T76_SAFETY_MAX_FILE_NAME_LEN 128       ///< Max file name length
 
 namespace T76::Sys::Safety {
-
-    /**
-     * @brief Maximum length for fault description strings
-     */
-    constexpr size_t MAX_FAULT_DESC_LEN = 128;
-
-    /**
-     * @brief Maximum length for function name strings
-     */
-    constexpr size_t MAX_FUNCTION_NAME_LEN = 64;
-
-    /**
-     * @brief Maximum length for file name strings  
-     */
-    constexpr size_t MAX_FILE_NAME_LEN = 128;
-
     /**
      * @brief Stack information captured during fault
      */
@@ -133,11 +119,11 @@ namespace T76::Sys::Safety {
         FaultType type;                                     ///< Type of fault
         RecoveryAction recoveryAction;                      ///< Recommended recovery action
         uint32_t lineNumber;                                ///< Source code line number
-        char fileName[MAX_FILE_NAME_LEN];                   ///< Source file name
-        char functionName[MAX_FUNCTION_NAME_LEN];           ///< Function name where fault occurred
-        char description[MAX_FAULT_DESC_LEN];               ///< Human-readable fault description
+        char fileName[T76_SAFETY_MAX_FILE_NAME_LEN];                   ///< Source file name
+        char functionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];           ///< Function name where fault occurred
+        char description[T76_SAFETY_MAX_FAULT_DESC_LEN];               ///< Human-readable fault description
         uint32_t taskHandle;                                ///< FreeRTOS task handle (if applicable)
-        char taskName[T76_MAX_TASK_NAME_LEN];              ///< FreeRTOS task name (if applicable)
+        char taskName[configMAX_TASK_NAME_LEN];              ///< FreeRTOS task name (if applicable)
         uint32_t faultSpecificData[4];                      ///< Additional fault-specific data
         uint32_t heapFreeBytes;                             ///< Available heap at time of fault
         uint32_t minHeapFreeBytes;                          ///< Minimum heap free since boot

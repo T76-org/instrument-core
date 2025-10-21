@@ -104,7 +104,7 @@ strncpy(gWrapperDescription + strlen("FreeRTOS assertion failed: "), expr, remai
 
 ### Static Allocations
 - `gSharedMemory[sizeof(SharedFaultSystem)]`: Persistent across resets
-- `gWrapperDescription[MAX_FAULT_DESC_LEN]`: Reusable buffer for wrappers
+- `gWrapperDescription[T76_SAFETY_MAX_FAULT_DESC_LEN]`: Reusable buffer for wrappers
 - All string operations use pre-allocated static buffers
 
 ### No Dynamic Allocation

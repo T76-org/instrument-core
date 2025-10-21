@@ -16,7 +16,7 @@
 #include "task.h"
 
 // Static buffers for string operations to avoid stack usage
-static char gWrapperDescription[T76::Sys::Safety::MAX_FAULT_DESC_LEN];
+static char gWrapperDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
 
 // ========== C-style wrapper functions ==========
 
