@@ -85,7 +85,6 @@ namespace T76::Sys::SafetyMonitor {
             printf("Note: Limited stack info (interrupt/Core1 context)\n");
         }
 
-        printf("Fault Count: %lu\n", faultInfo.faultCount);
         printf("==============================\n\n");
     }
 

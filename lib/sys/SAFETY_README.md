@@ -33,7 +33,6 @@ The system catches and handles the following types of faults:
 
 5. **System Monitoring**
    - Watchdog timeout protection
-   - Fault count tracking
    - System state monitoring
 
 ### Multi-Core Support
@@ -113,12 +112,9 @@ if (T76::Sys::Safety::isInFaultState()) {
     // System is currently processing a fault
 }
 
-// Get fault statistics
-uint32_t fault_count = T76::Sys::Safety::getFaultCount();
-
 // Get last fault information
 FaultInfo last_fault;
-if (T76::Sys::Safety::getLastFault(last_fault)) {
+if (T76::Sys::Safety::getLastFault(&last_fault)) {
     printf("Last fault: %s\n", last_fault.description);
 }
 
@@ -173,7 +169,6 @@ struct FaultInfo {
     char task_name[configMAX_TASK_NAME_LEN];
     
     // Metadata
-    uint32_t fault_count;
     uint32_t crc32;              // For integrity checking
 };
 ```
@@ -211,7 +206,7 @@ void mainLoop() {
 2. **Update Watchdog**: Call `updateWatchdog()` regularly from main loops
 3. **Use Macros**: Use `CRITICAL_FAULT()` and `FATAL_FAULT()` macros for convenience
 4. **Custom Handlers**: Implement custom handlers for application-specific recovery
-5. **Monitor Regularly**: Check fault counts and system state periodically
+5. **Monitor Regularly**: Check system state periodically
 6. **Test Recovery**: Test different recovery strategies during development
 
 ## Thread Safety

@@ -132,7 +132,6 @@ namespace T76::Sys::Safety {
         uint32_t minHeapFreeBytes;                          ///< Minimum heap free since boot
         bool isInInterrupt;                                 ///< True if fault occurred in interrupt context
         uint32_t interruptNumber;                           ///< Interrupt number (if in interrupt)
-        uint32_t faultCount;                                ///< Total number of faults since boot
         StackInfo stackInfo;                                ///< Stack information at time of fault
     };
 
@@ -140,8 +139,8 @@ namespace T76::Sys::Safety {
      * @brief Initialize the safety system
      * 
      * This function must be called early in system initialization, before
-     * any other safety functions are used. It sets up shared memory structures,
-     * initializes fault counters, and configures the default fault handlers.
+     * any other safety functions are used. It sets up shared memory structures
+     * and configures the default fault handlers.
      */
     void safetyInit();
 
@@ -154,14 +153,7 @@ namespace T76::Sys::Safety {
     bool getLastFault(FaultInfo* faultInfo);
 
     /**
-     * @brief Get the total number of faults since system boot
-     * 
-     * @return Total fault count
-     */
-    uint32_t getFaultCount();
-
-    /**
-     * @brief Clear fault history and reset counters
+     * @brief Clear fault history
      * 
      * This function should be called after successful fault recovery
      * to reset the fault tracking system.

@@ -35,11 +35,10 @@ namespace T76::Sys::Safety {
     struct SharedFaultSystem {
         volatile uint32_t magic;                    ///< Magic number for structure validation
         volatile uint32_t version;                  ///< Structure version for compatibility
-        volatile uint32_t faultCount;               ///< Total number of faults since boot
         volatile bool isInFaultState;               ///< True if currently processing a fault
         volatile uint32_t lastFaultCore;            ///< Core ID of last fault
         FaultInfo lastFaultInfo;                    ///< Information about the last fault
-        uint32_t reserved[9];                       ///< Reserved for future use
+        uint32_t reserved[11];                      ///< Reserved for future use (increased from 9)
     };
 
     // Place shared fault system in uninitialized RAM for persistence across resets
@@ -48,7 +47,6 @@ namespace T76::Sys::Safety {
 
     // Local fault state for each core
     static bool gSafetyInitialized = false;
-    static uint32_t gLocalFaultCount = 0;
 
     // Pico SDK spinlock instance for inter-core synchronization
     static spin_lock_t* gSafetySpinlock = nullptr;
@@ -251,15 +249,6 @@ namespace T76::Sys::Safety {
 
         // Capture comprehensive stack information directly into global structure
         getStackInfo();
-
-        // Update fault count atomically
-        if (gSharedFaultSystem && gSafetySpinlock) {
-            uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-            gSharedFaultSystem->lastFaultInfo.faultCount = ++gSharedFaultSystem->faultCount;
-            spin_unlock(gSafetySpinlock, savedIrq);
-        } else {
-            gSharedFaultSystem->lastFaultInfo.faultCount = ++gLocalFaultCount;
-        }
     }
 
     /**
@@ -342,7 +331,6 @@ namespace T76::Sys::Safety {
             memset(gSharedFaultSystem, 0, sizeof(SharedFaultSystem));
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
             gSharedFaultSystem->version = 1;
-            gSharedFaultSystem->faultCount = 0;
             gSharedFaultSystem->isInFaultState = false;
         }
 
@@ -383,7 +371,8 @@ namespace T76::Sys::Safety {
 
         uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
         
-        if (gSharedFaultSystem->faultCount == 0) {
+        // Check if we're in a fault state (indicates fault info is available)
+        if (!gSharedFaultSystem->isInFaultState) {
             spin_unlock(gSafetySpinlock, savedIrq);
             return false;
         }
@@ -394,27 +383,15 @@ namespace T76::Sys::Safety {
         return true;
     }
 
-    uint32_t getFaultCount() {
-        if (!gSharedFaultSystem) {
-            return gLocalFaultCount;
-        }
-
-        // Reading a single 32-bit value is atomic on ARM, no spinlock needed
-        return gSharedFaultSystem->faultCount;
-    }
-
     void clearFaultHistory() {
         if (!gSharedFaultSystem || !gSafetySpinlock) {
-            gLocalFaultCount = 0;
             return;
         }
 
         uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-        gSharedFaultSystem->faultCount = 0;
         gSharedFaultSystem->isInFaultState = false;
         memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
         spin_unlock(gSafetySpinlock, savedIrq);
-        gLocalFaultCount = 0;
     }
 
     bool isInFaultState() {
