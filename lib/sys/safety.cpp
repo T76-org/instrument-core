@@ -24,80 +24,9 @@
 #include <hardware/watchdog.h>
 #include <hardware/irq.h>
 
+#include "safety_private.hpp"
+
 namespace T76::Sys::Safety {
-    /**
-     * @brief Magic number for fault system structure validation
-     * 
-     * This constant is used to validate that the shared memory structure
-     * has been properly initialized and is not corrupted.
-     */
-    constexpr uint32_t FAULT_SYSTEM_MAGIC = 0x54F3570; 
-
-    /**
-     * @brief Pointer to shared fault system in uninitialized memory
-     * 
-     * This points to the SharedFaultSystem structure placed in uninitialized
-     * memory that persists across system resets, allowing fault information
-     * to be preserved for analysis after reboot.
-     */
-    SharedFaultSystem* gSharedFaultSystem = nullptr;
-    
-    /**
-     * @brief Raw memory buffer for shared fault system
-     * 
-     * This buffer is placed in the .uninitialized_data section to ensure
-     * it persists across system resets. It's properly aligned for the
-     * SharedFaultSystem structure.
-     */
-    static uint8_t gSharedMemory[sizeof(SharedFaultSystem)] __attribute__((section(".uninitialized_data"))) __attribute__((aligned(4)));
-
-    /**
-     * @brief Per-core initialization flag
-     * 
-     * Tracks whether the safety system has been initialized on this core.
-     * Prevents multiple initialization and ensures proper setup sequence.
-     */
-    static bool gSafetyInitialized = false;
-
-    /**
-     * @brief Inter-core synchronization spinlock
-     * 
-     * Provides thread-safe access to shared memory between both cores.
-     * Uses Pico SDK spinlock mechanism for reliable multi-core synchronization.
-     */
-    static spin_lock_t* gSafetySpinlock = nullptr;
-
-    /**
-     * @brief Static buffer for file names to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for file name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    static char gStaticFileName[T76_SAFETY_MAX_FILE_NAME_LEN];
-    
-    /**
-     * @brief Static buffer for function names to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for function name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    static char gStaticFunctionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];
-    
-    /**
-     * @brief Static buffer for fault descriptions to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for fault description string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    static char gStaticDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
-
-    /**
-     * @brief Watchdog initialization state
-     * 
-     * Tracks whether the Core 1 watchdog has been initialized to prevent
-     * multiple initialization attempts.
-     */
-    static bool gWatchdogInitialized = false;
 
     /**
      * @brief Minimal string copy function optimized for safety system
@@ -390,8 +319,6 @@ namespace T76::Sys::Safety {
 
         return executedCount;
     }
-
-
 
     /**
      * @brief Core fault handling function - minimal stack usage
