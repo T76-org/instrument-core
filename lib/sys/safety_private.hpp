@@ -212,6 +212,19 @@ namespace T76::Sys::Safety {
                                   const char* function);
 
     /**
+     * @brief Reset the reboot counter after successful operation
+     * 
+     * Should be called by the application after a period of successful
+     * operation to reset the consecutive reboot counter. This prevents
+     * the system from entering safety monitor mode due to old faults.
+     * 
+     * Typical usage: Call this function after the system has been
+     * running successfully for several minutes without faults.
+     */
+    void resetRebootCounter();
+
+
+    /**
      * @brief Report a fault to the safety system
      * 
      * This function is used internally by system hooks and wrapper functions
@@ -229,7 +242,13 @@ namespace T76::Sys::Safety {
                     uint32_t line,
                     const char* function);
 
-
+    /**
+     * @brief Clear fault history
+     * 
+     * This function should be called after successful fault recovery
+     * to reset the fault tracking system.
+     */
+    void clearFaultHistory();
 
     /**
      * @brief Execute all registered safing functions before system reset

@@ -109,32 +109,12 @@ namespace T76::Sys::Safety {
     void safetyInit();
 
     /**
-     * @brief Clear fault history
-     * 
-     * This function should be called after successful fault recovery
-     * to reset the fault tracking system.
-     */
-    void clearFaultHistory();
-
-    /**
      * @brief Deregister a previously registered safing function
      * 
      * @param safingFunc Function to deregister
      * @return SafingResult indicating success or failure reason
      */
     SafingResult deregisterSafingFunction(SafingFunction safingFunc);
-
-    /**
-     * @brief Reset the reboot counter after successful operation
-     * 
-     * Should be called by the application after a period of successful
-     * operation to reset the consecutive reboot counter. This prevents
-     * the system from entering safety monitor mode due to old faults.
-     * 
-     * Typical usage: Call this function after the system has been
-     * running successfully for several minutes without faults.
-     */
-    void resetRebootCounter();
 
     /**
      * @brief Initialize Core 1 watchdog protection
