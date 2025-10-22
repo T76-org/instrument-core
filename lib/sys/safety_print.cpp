@@ -16,7 +16,6 @@
 #include <hardware/irq.h>
 
 #include "safety.hpp"
-#include "safety_print.hpp"
 #include "safety_private.hpp"
 
 

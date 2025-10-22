@@ -283,4 +283,7 @@ namespace T76::Sys::Safety {
     // External declaration for shared fault system access from safety monitor
     extern SharedFaultSystem* gSharedFaultSystem;
     
+    SafingResult registerSafingFunction(SafingFunction safingFunc);
+    SafingResult deregisterSafingFunction(SafingFunction safingFunc);
+
 } // namespace T76::Sys::Safety
