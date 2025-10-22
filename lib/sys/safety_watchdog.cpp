@@ -3,7 +3,7 @@
 
 namespace T76::Sys::Safety {
 
-        bool initCore1Watchdog() {
+    bool initCore1Watchdog() {
         // Only allow initialization on Core 1
         if (get_core_num() != 1) {
             return false;
