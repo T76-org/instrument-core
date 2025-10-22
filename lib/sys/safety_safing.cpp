@@ -11,6 +11,7 @@
 #include <hardware/irq.h>
 
 #include "safety_private.hpp"
+#include "safety.hpp"
 
 namespace T76::Sys::Safety {
     

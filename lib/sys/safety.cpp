@@ -53,7 +53,6 @@ namespace T76::Sys::Safety {
         // Mark system as being in fault state
         if (gSharedFaultSystem && gSafetySpinlock) {
             uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-            gSharedFaultSystem->isInFaultState = true;
             gSharedFaultSystem->lastFaultCore = get_core_num();
             gSharedFaultSystem->safetySystemReset = true; // Mark as safety system reset
             
@@ -113,7 +112,6 @@ namespace T76::Sys::Safety {
             memset(gSharedFaultSystem, 0, sizeof(SharedFaultSystem));
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
             gSharedFaultSystem->version = 1;
-            gSharedFaultSystem->isInFaultState = false;
             gSharedFaultSystem->safingFunctionCount = 0;
             gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
@@ -135,7 +133,6 @@ namespace T76::Sys::Safety {
                 populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
                                 "Hardware watchdog timeout - Core 1 may have hung",
                                 "system", 0, "watchdog");
-                gSharedFaultSystem->isInFaultState = true;
                 gSharedFaultSystem->lastFaultCore = 1; // Assume Core 1 since it's the one being protected
                 
                 // Manually add to fault history (like reportFault does but without immediate reset)
@@ -187,32 +184,12 @@ namespace T76::Sys::Safety {
         handleFault();
     }
 
-    bool getLastFault(FaultInfo* faultInfo) {
-        if (!faultInfo || !gSharedFaultSystem || !gSafetySpinlock) {
-            return false;
-        }
-
-        uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-        
-        // Check if we're in a fault state (indicates fault info is available)
-        if (!gSharedFaultSystem->isInFaultState) {
-            spin_unlock(gSafetySpinlock, savedIrq);
-            return false;
-        }
-
-        *faultInfo = gSharedFaultSystem->lastFaultInfo;
-        spin_unlock(gSafetySpinlock, savedIrq);
-        
-        return true;
-    }
-
     void clearFaultHistory() {
         if (!gSharedFaultSystem || !gSafetySpinlock) {
             return;
         }
 
         uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-        gSharedFaultSystem->isInFaultState = false;
         memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
         spin_unlock(gSafetySpinlock, savedIrq);
     }
@@ -247,16 +224,6 @@ namespace T76::Sys::Safety {
         
         spin_unlock(gSafetySpinlock, savedIrq);
     }
-
-    bool isInFaultState() {
-        if (!gSharedFaultSystem) {
-            return false;
-        }
-
-        // Reading a single boolean is atomic, no spinlock needed
-        return gSharedFaultSystem->isInFaultState;
-    }
-
 
     bool initCore1Watchdog() {
         // Only allow initialization on Core 1
