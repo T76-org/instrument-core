@@ -108,6 +108,8 @@ namespace T76::Sys::Safety {
      */
     void safetyInit();
 
+    SafingResult registerSafingFunction(SafingFunction safingFunc);
+
     /**
      * @brief Deregister a previously registered safing function
      * 
