@@ -1,8 +1,20 @@
 /**
- * @brief Magic number for fault system structure validation
+ * @file safety_private.hpp
+ * @copyright Copyright (c) 2025 MTA, Inc.
  * 
- * This constant is used to validate that the shared memory structure
- * has been properly initialized and is not corrupted.
+ * Private internal definitions and structures for the safety system.
+ * 
+ * This file contains internal data structures, constants, and function declarations
+ * used by the safety system implementation. It includes:
+ * 
+ * - Shared memory structures for inter-core fault communication
+ * - Fault information data structures and enumerations  
+ * - Internal function declarations for fault handling
+ * - Configuration constants and limits
+ * - Global variable declarations for shared state
+ * 
+ * This file should only be included by safety system implementation files
+ * and is not part of the public API.
  */
 
 #pragma once
@@ -26,12 +38,17 @@
 #define T76_SAFETY_MAX_FAULT_DESC_LEN 128      ///< Max fault description length
 #define T76_SAFETY_MAX_FUNCTION_NAME_LEN 64    ///< Max function name length
 #define T76_SAFETY_MAX_FILE_NAME_LEN 128       ///< Max file name length
-#define T76_SAFETY_MAX_SAFING_FUNCTIONS 8      ///< Maximum number of safing functions that can be registered
 #define T76_SAFETY_MAX_REBOOTS 3               ///< Maximum number of consecutive reboots before entering safety monitor
 
 // Core 1 watchdog configuration
 #define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000    ///< Default watchdog timeout (5 seconds)
 
+/**
+ * @brief Magic number for fault system structure validation
+ * 
+ * This constant is used to validate that the shared memory structure
+ * has been properly initialized and is not corrupted.
+ */
 #define FAULT_SYSTEM_MAGIC 0x54F3570
 
 
@@ -89,8 +106,6 @@ namespace T76::Sys::Safety {
         StackInfo stackInfo;                                    ///< Stack information at time of fault
     } FaultInfo;
 
-    typedef void (*SafingFunction)(void);
-
     /**
      * @brief Shared memory structure for inter-core fault communication
      * 
@@ -102,10 +117,6 @@ namespace T76::Sys::Safety {
         volatile uint32_t version;                  ///< Structure version for compatibility
         volatile uint32_t lastFaultCore;            ///< Core ID of last fault
         FaultInfo lastFaultInfo;                    ///< Information about the last fault
-        
-        // Safing function management
-        SafingFunction safingFunctions[T76_SAFETY_MAX_SAFING_FUNCTIONS]; ///< Array of registered safing functions
-        volatile uint32_t safingFunctionCount;      ///< Number of registered safing functions
         
         // Reboot limiting and fault history
         volatile uint32_t rebootCount;              ///< Number of consecutive fault-related reboots
@@ -250,25 +261,6 @@ namespace T76::Sys::Safety {
      */
     void clearFaultHistory();
 
-    /**
-     * @brief Execute all registered safing functions before system reset
-     * 
-     * Safely executes all registered safing functions to put the system
-     * into a safe state before reset. Uses a local copy approach to
-     * minimize spinlock hold time while ensuring thread safety.
-     * 
-     * Process:
-     * 1. Quickly copy function pointers from shared memory to local array
-     * 2. Release spinlock to minimize interference with other operations
-     * 3. Execute each function sequentially in registration order
-     * 4. Count successful executions for potential debugging
-     * 
-     * @return Number of safing functions that were successfully executed
-     * 
-     * @note Does not handle exceptions - relies on safing functions being fault-tolerant
-     * @note Executes all functions even if one fails (no early termination)
-     * @note Uses minimal stack by avoiding dynamic allocations
-     */
-    uint32_t executeSafingFunctions();
+
 
 } // namespace T76::Sys::Safety

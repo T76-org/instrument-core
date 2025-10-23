@@ -4,10 +4,12 @@
  * 
  * This file provides comprehensive fault handling for the RP2350 platform using FreeRTOS.
  * It catches all possible faults (asserts, FreeRTOS hooks, panics, allocation failures, etc.),
- * saves information about the fault, and routes them to a common fault handler.
+ * saves information about the fault, and triggers system reset for recovery.
  * 
- * OPTIMIZED FOR MINIMAL STACK USAGE AND STATIC MEMORY ALLOCATION
- * ==============================================================
+ * The system follows a safe-by-default design philosophy where the system always
+ * starts in a safe state upon reset, eliminating the need for active safing functions.
+ * This approach is more reliable and handles all reset scenarios (including hardware
+ * watchdog timeouts) uniformly.
  * 
  * This safety system has been optimized to use the absolute minimum stack space possible
  * and uses only static memory allocation. Key optimizations include:
@@ -20,17 +22,6 @@
  * - Reduced function parameters and local variables
  * - Eliminated all struct references and local pointers
  * - Direct global memory access (no intermediate pointer variables)
- * 
- * Stack Usage Analysis:
- * ====================
- * 
- * - reportFault(): ~24 bytes (minimal local variables, no pointers)
- * - populateFaultInfo(): ~12 bytes (direct global access, no local pointers)
- * - handleFault(): ~8 bytes (minimal local variables)
- * - String operations: ~4 bytes (direct global access)
- * 
- * Total worst-case stack usage: ~48 bytes (compared to 500+ bytes previously)
- * Further optimized from ~64 bytes by eliminating all struct references and local pointers.
  * 
  * Multi-Core Fault Handling:
  * ==========================
@@ -56,9 +47,24 @@
  * Recovery Strategies:
  * ===================
  * 
- * The system supports multiple recovery strategies:
- * - HALT: Stop execution and wait for external reset
- * - RESET: Perform system reset
+ * The system uses a safe-by-default design where the system automatically
+ * returns to a safe state upon any reset. This eliminates the need for
+ * active safing functions and provides more reliable safety behavior.
+ * 
+ * The system implements two recovery strategies based on fault history:
+ * 
+ * - RESET: Normal fault recovery (< T76_SAFETY_MAX_REBOOTS consecutive faults)
+ *   * Triggers immediate system reset via hardware watchdog
+ *   * System automatically returns to safe state upon reset
+ *   * Preserves fault information in persistent memory for analysis
+ * 
+ * - SAFETY MONITOR: Persistent fault protection (≥ T76_SAFETY_MAX_REBOOTS faults)
+ *   * Enters a safe monitoring mode with continuous fault reporting
+ *   * Halts normal operation to prevent infinite reboot loops
+ *   * Provides detailed fault history output via USB console
+ *   * Requires manual system reset to clear fault state and resume operation
+ * 
+ * _Note:_ This code was partially developed with the assistance of AI.
  * 
  */
 
@@ -77,29 +83,6 @@
 namespace T76::Sys::Safety {
 
     /**
-     * @brief Function pointer type for safing functions
-     * 
-     * Safing functions are called before system reset to put the system
-     * into a safe state. They should:
-     * - Execute quickly and efficiently
-     * - Be fault-tolerant (not cause additional faults)
-     * - Put their subsystem into a safe state
-     * - Not rely on dynamic memory allocation
-     * - Use minimal stack space
-     */
-    typedef void (*SafingFunction)(void);
-
-    /**
-     * @brief Result codes for safing function operations
-     */
-    enum class SafingResult : uint8_t {
-        SUCCESS = 0,      ///< Operation completed successfully
-        FULL,             ///< Cannot register - table is full
-        NOT_FOUND,        ///< Function not found during deregistration
-        INVALID_PARAM,    ///< Invalid parameter provided
-    };
-
-    /**
      * @brief Initialize the safety system
      * 
      * This function must be called early in system initialization, before
@@ -108,15 +91,7 @@ namespace T76::Sys::Safety {
      */
     void safetyInit();
 
-    SafingResult registerSafingFunction(SafingFunction safingFunc);
 
-    /**
-     * @brief Deregister a previously registered safing function
-     * 
-     * @param safingFunc Function to deregister
-     * @return SafingResult indicating success or failure reason
-     */
-    SafingResult deregisterSafingFunction(SafingFunction safingFunc);
 
     /**
      * @brief Initialize Core 1 watchdog protection

@@ -8,7 +8,7 @@ The T76 Comprehensive Safety System provides robust fault detection, reporting, 
 - Comprehensive fault detection and reporting
 - Inter-core fault communication
 - Persistent fault information across reboots
-- Configurable safing functions for safe shutdown
+- Safe-by-default design (system starts in safe state)
 - Reboot limiting to prevent infinite reboot loops
 - Minimal stack usage (<48 bytes) and static memory allocation
 - Safety Monitor for persistent fault reporting
@@ -54,11 +54,11 @@ Inter-core communication uses atomic operations and spinlocks for thread-safe op
 
 ## Recovery Strategy
 
-The system uses a simplified and reliable recovery strategy:
+The system uses a safe-by-default recovery strategy:
 
 1. **Fault Detection**: When a fault occurs, comprehensive information is captured
-2. **Safing Functions**: Execute registered safing functions to put system in safe state
-3. **System Reset**: Perform immediate watchdog-based system reset
+2. **System Reset**: Perform immediate watchdog-based system reset
+3. **Safe State**: System automatically returns to safe state upon reset
 4. **Reboot Limiting**: Track consecutive reboots to prevent infinite loops
 5. **Safety Monitor**: Display fault information when reboot limit is exceeded
 
@@ -94,24 +94,28 @@ T76::Sys::Safety::reportFault(__FILE__, __LINE__, __FUNCTION__,
                               T76::Sys::Safety::FaultType::INVALID_STATE,
                               "System entered invalid state");
 
-// The function does not return - system will reset after safing functions
+// The function does not return - system will reset and return to safe state
 ```
 
-### 3. Safing Functions
+### 3. Safe-by-Default Design
 
-Register functions to execute before system reset:
+With the safe-by-default approach, the system always starts in a safe state:
 
 ```cpp
-void shutdownPeripherals() {
-    // Turn off motors, close valves, etc.
-    // Keep it simple and fast - no complex operations
-}
-
 void main() {
     T76::Sys::Safety::safetyInit();
     
-    // Register safing function
-    T76::Sys::Safety::registerSafingFunction(shutdownPeripherals);
+    // System starts in safe state by default
+    // Hardware is configured for safe operation
+    // Only transition to operational state through explicit initialization
+    
+    // Your safe initialization code here...
+    initializePeripheralsInSafeMode();
+    
+    // Transition to operational state only after verification
+    if (systemSelfTestPassed()) {
+        transitionToOperationalMode();
+    }
     
     // Your application...
 }
@@ -140,7 +144,7 @@ void applicationMain() {
 Initialize the safety system. Must be called early in system initialization.
 
 #### `void reportFault(const char* fileName, uint32_t lineNumber, const char* functionName, FaultType faultType, const char* description)`
-Report a fault and trigger system reset after safing functions.
+Report a fault and trigger system reset. System will return to safe state upon reset.
 
 **Parameters:**
 - `fileName`: Source file where fault occurred
@@ -149,26 +153,8 @@ Report a fault and trigger system reset after safing functions.
 - `faultType`: Type of fault (see FaultType enum)
 - `description`: Human-readable description
 
-#### `bool getLastFault(FaultInfo* faultInfo)`
-Retrieve information about the last fault.
-
-**Returns:** `true` if valid fault information was retrieved
-
 #### `void clearFaultHistory()`
 Clear stored fault information.
-
-#### `bool isInFaultState()`
-Check if system is currently in a fault state.
-
-### Safing Functions
-
-#### `SafingResult registerSafingFunction(SafingFunction safingFunc)`
-Register a function to execute before system reset.
-
-**Returns:** `SafingResult` indicating success or failure
-
-#### `SafingResult deregisterSafingFunction(SafingFunction safingFunc)`
-Remove a previously registered safing function.
 
 ### Reboot Limiting
 
@@ -198,11 +184,6 @@ enum class FaultType : uint8_t {
 ### Reboot Limiting
 ```cpp
 #define T76_SAFETY_MAX_REBOOTS 3  // Maximum consecutive reboots before entering safety monitor
-```
-
-### Safing Functions
-```cpp
-#define T76_SAFETY_MAX_SAFING_FUNCTIONS 8  // Maximum number of registered safing functions
 ```
 
 ### String Limits

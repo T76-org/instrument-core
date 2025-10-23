@@ -31,15 +31,17 @@ namespace T76::Sys::Safety {
     /**
      * @brief Core fault handling function - minimal stack usage
      * 
-     * Final stage of fault processing that prepares the system for recovery.
+     * Final stage of fault processing that triggers system reset for recovery.
      * Designed for maximum reliability with minimal stack and resource usage.
+     * 
+     * With safe-by-default design, the system automatically returns to a safe
+     * state upon reset, eliminating the need for active safing functions.
      * 
      * Sequence of operations:
      * 1. Mark system as being in fault state (for persistent tracking)
      * 2. Set safety system reset flag to distinguish from watchdog timeout
-     * 3. Execute all registered safing functions to put system in safe state
-     * 4. Allow brief time for pending output to complete
-     * 5. Trigger immediate system reset via watchdog
+     * 3. Allow brief time for pending output to complete
+     * 4. Trigger immediate system reset via watchdog
      * 
      * This function never returns - it always results in system reset.
      * The fault information will persist in uninitialized memory for
@@ -67,10 +69,6 @@ namespace T76::Sys::Safety {
             spin_unlock(gSafetySpinlock, savedIrq);
         }
 
-        // Execute safing functions before recovery action
-        // This puts the system into a safe state before restart/halt
-        executeSafingFunctions();
-
         // Give a brief moment for any pending output to complete
         // Use busy wait to avoid function call overhead
         uint32_t start_time = to_ms_since_boot(get_absolute_time());
@@ -79,7 +77,7 @@ namespace T76::Sys::Safety {
         }
 
         // Perform immediate system reset using watchdog
-        // This is more reliable than triggering a fault
+        // System will automatically return to safe state upon reset
         watchdog_enable(1, 1);
         while (true) {
             tight_loop_contents();
@@ -112,15 +110,9 @@ namespace T76::Sys::Safety {
             memset(gSharedFaultSystem, 0, sizeof(SharedFaultSystem));
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
             gSharedFaultSystem->version = 1;
-            gSharedFaultSystem->safingFunctionCount = 0;
             gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
             gSharedFaultSystem->safetySystemReset = false;
-            
-            // Initialize safing function array to null pointers
-            for (uint32_t i = 0; i < T76_SAFETY_MAX_SAFING_FUNCTIONS; i++) {
-                gSharedFaultSystem->safingFunctions[i] = nullptr;
-            }
         }
 
         // Only check for watchdog reboot if this is NOT the first boot
@@ -159,8 +151,29 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Internal function to report faults (used by system hooks)
-     * Optimized for minimal stack usage and direct operation
+     * @brief Report a fault to the safety system with minimal stack usage
+     * 
+     * Central fault reporting function used by system hooks and wrapper functions
+     * to report various types of faults. This function captures comprehensive fault
+     * information and triggers immediate system recovery through the safety mechanism.
+     * 
+     * The function performs the following sequence:
+     * 1. Ensures shared memory is available (immediate reset if not)
+     * 2. Populates detailed fault information in shared memory
+     * 3. Triggers fault handling sequence (safing functions + system reset)
+     * 
+     * Optimized for minimal stack usage and direct operation on shared memory
+     * to ensure reliability even under severe fault conditions.
+     * 
+     * @param type Fault type classification for categorization and analysis
+     * @param description Human-readable fault description for debugging
+     * @param file Source file name where fault occurred
+     * @param line Line number in source file where fault occurred
+     * @param function Function name where fault occurred
+     * 
+     * @note Never returns - always results in system reset
+     * @note Thread-safe through spinlock protection in populateFaultInfo
+     * @note Falls back to immediate watchdog reset if shared memory unavailable
      */
     void reportFault(FaultType type, 
                      const char* description,
@@ -184,6 +197,23 @@ namespace T76::Sys::Safety {
         handleFault();
     }
 
+    /**
+     * @brief Clear fault history and reset fault tracking
+     * 
+     * Resets the fault information structure in shared memory to clear
+     * any previously recorded fault data. This function should be called
+     * after successful fault recovery or during system maintenance to
+     * clear stale fault information.
+     * 
+     * The function:
+     * - Zeros out the lastFaultInfo structure in shared memory
+     * - Preserves other safety system state (reboot counter, etc.)
+     * - Uses spinlock protection for thread safety
+     * 
+     * @note Thread-safe through spinlock protection
+     * @note Does not affect reboot counter or fault history array
+     * @note Safe to call even if safety system is not initialized
+     */
     void clearFaultHistory() {
         if (!gSharedFaultSystem || !gSafetySpinlock) {
             return;

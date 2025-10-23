@@ -1,6 +1,26 @@
 /**
- * @file safety.cpp
+ * @file safety_print.cpp
  * @copyright Copyright (c) 2025 MTA, Inc.
+ * 
+ * Implementation of fault information collection and string handling for the safety system.
+ * 
+ * This file provides functionality for gathering comprehensive fault information
+ * and safely handling strings during fault conditions. It includes utilities for:
+ * 
+ * - Safe string copying with bounds checking and null pointer handling
+ * - Stack information analysis using ARM Cortex-M registers and FreeRTOS APIs
+ * - Heap statistics collection from FreeRTOS memory management
+ * - Task and interrupt context information gathering
+ * - Comprehensive fault data population in shared memory structures
+ * 
+ * All functions are optimized for minimal stack usage and operate directly on
+ * shared memory structures to ensure reliability during fault handling. The
+ * implementation handles different execution contexts (Core 0/1, task/interrupt)
+ * and provides appropriate information based on available system services.
+ * 
+ * The fault information collected by this module is essential for debugging
+ * and root cause analysis of system faults, providing detailed context about
+ * system state at the time of failure.
  */
 
 #include <cstring>
@@ -23,9 +43,24 @@ namespace T76::Sys::Safety {
 
     /**
      * @brief Minimal string copy function optimized for safety system
-     * @param dest Destination buffer
-     * @param src Source string (can be null)
+     * 
+     * Safely copies strings with bounds checking and null pointer handling,
+     * optimized for use in fault handling contexts where reliability is
+     * critical and stack usage must be minimized.
+     * 
+     * Features:
+     * - Null pointer safe (handles null src and dest gracefully)
+     * - Always null-terminates destination buffer
+     * - Respects maximum buffer length to prevent overflows
+     * - Optimized for minimal stack usage and reliability
+     * 
+     * @param dest Destination buffer (must be valid and have space for maxLen chars)
+     * @param src Source string (can be null - results in empty string)
      * @param maxLen Maximum length including null terminator
+     * 
+     * @note Uses character-by-character copy to avoid library dependencies
+     * @note Always ensures null termination even on truncation
+     * @note Safe to call with null src pointer (results in empty dest string)
      */
     static inline void safeStringCopy(char* dest, const char* src, size_t maxLen) {
         if (!dest || maxLen == 0) return;
@@ -46,18 +81,29 @@ namespace T76::Sys::Safety {
     /**
      * @brief Get comprehensive stack information directly into global fault info
      * 
-     * Captures detailed stack usage information at the time of fault, including:
-     * - Stack pointer position and type (Main/Process stack)
+     * Captures detailed stack usage information at the time of fault by analyzing
+     * ARM Cortex-M stack pointers and FreeRTOS task information when available.
+     * Operates directly on shared memory to minimize stack usage during fault handling.
+     * 
+     * Information captured:
+     * - Stack pointer position and type (Main Stack Pointer vs Process Stack Pointer)
      * - Stack usage percentage and remaining space
-     * - High water mark for stack monitoring
+     * - High water mark for stack monitoring (FreeRTOS tasks)
+     * - Stack type identification (main vs task stack)
+     * - Accuracy indicators based on execution context
      * 
-     * Works on both cores but has different accuracy levels:
-     * - Core 0: Full accuracy when in task context with FreeRTOS
-     * - Core 1: Estimated values based on current stack pointer
-     * - Interrupt context: Limited accuracy with estimation
+     * Accuracy levels by context:
+     * - Core 0 + FreeRTOS task: High accuracy with FreeRTOS APIs
+     * - Core 0 + interrupt context: Estimated values, marked as low accuracy
+     * - Core 1 + bare metal: Estimated values based on current SP
      * 
-     * Stack usage is calculated to help identify stack overflow conditions
-     * and optimize stack allocation in the system.
+     * Stack usage calculation helps identify stack overflow conditions,
+     * optimize stack allocation, and debug memory-related faults.
+     * 
+     * @note Uses inline assembly to read ARM Cortex-M MSP, PSP, and SP registers
+     * @note Operates directly on global shared memory structure
+     * @note Conservative estimates used when exact information unavailable
+     * @note Handles both Main Stack (MSP) and Process Stack (PSP) contexts
      */
     static inline void getStackInfo() {
         if (!gSharedFaultSystem) return;
@@ -139,16 +185,29 @@ namespace T76::Sys::Safety {
     /**
      * @brief Get heap statistics directly into global fault info
      * 
-     * Captures current heap usage information including:
+     * Captures current heap usage information using FreeRTOS heap management
+     * APIs when available. Operates directly on shared memory to minimize
+     * stack usage during fault handling.
+     * 
+     * Information captured:
      * - Free heap bytes available at time of fault
      * - Minimum free heap bytes since system boot (high water mark)
+     * - Zero values when heap management not available
      * 
-     * Only available on Core 0 where FreeRTOS heap management is active.
-     * Core 1 running bare-metal code will show zero values as it doesn't
-     * use the FreeRTOS heap manager.
+     * Availability by core:
+     * - Core 0: Full heap statistics via FreeRTOS APIs
+     * - Core 1: Zero values (bare-metal, no heap manager)
      * 
-     * This information helps identify memory leaks and heap exhaustion
+     * This information helps identify:
+     * - Memory leaks (decreasing free heap over time)
+     * - Heap exhaustion conditions leading to malloc failures
+     * - Memory usage patterns and optimization opportunities
+     * - Correlation between memory pressure and system faults
      * conditions that may lead to system faults.
+     * 
+     * @note Only functional on Core 0 where FreeRTOS heap manager is active
+     * @note Operates directly on global shared memory structure
+     * @note Zero values indicate heap information not available (Core 1)
      */
     static inline void getHeapStats() {
         if (!gSharedFaultSystem) return;
@@ -167,18 +226,33 @@ namespace T76::Sys::Safety {
     /**
      * @brief Get task information directly into global fault info
      * 
-     * Captures FreeRTOS task context information when available:
+     * Captures FreeRTOS task context and interrupt information when available,
+     * using ARM Cortex-M IPSR register and FreeRTOS APIs. Operates directly
+     * on shared memory to minimize stack usage during fault handling.
+     * 
+     * Information captured:
      * - Task handle (unique identifier for the running task)
      * - Task name for identification and debugging
-     * - Interrupt context detection via IPSR register
+     * - Interrupt context detection via IPSR register examination
      * - Interrupt number if fault occurred in interrupt handler
+     * - Default values when information not available
      * 
-     * Only available on Core 0 in task context. Core 1 (bare-metal) and
-     * interrupt contexts will show default values. Interrupt detection
-     * works on both cores by examining the ARM Cortex-M IPSR register.
+     * Availability by context:
+     * - Core 0 + FreeRTOS task: Full task information available
+     * - Core 0 + interrupt: Interrupt number, no task info
+     * - Core 1 + bare metal: Default values (no task system)
+     * - Any core + interrupt: Interrupt detection works via IPSR
      * 
-     * This information is crucial for identifying which task or interrupt
-     * was active when the fault occurred, enabling targeted debugging.
+     * This information is crucial for:
+     * - Identifying which task was active when fault occurred
+     * - Determining if fault happened in interrupt vs task context
+     * - Enabling targeted debugging and root cause analysis
+     * - Understanding system execution context at fault time
+     * 
+     * @note Uses ARM Cortex-M IPSR register for interrupt detection
+     * @note Operates directly on global shared memory structure
+     * @note Safe string copying prevents buffer overflows
+     * @note Works on both cores with different levels of information
      */
     static inline void getTaskInfo() {
         if (!gSharedFaultSystem) return;
