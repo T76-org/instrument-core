@@ -144,21 +144,21 @@ namespace T76::Sys::Safety {
                     gSharedFaultSystem->lastFaultInfo.stackInfo.stackHighWaterMark = gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining;
                     
                     // Calculate approximate stack information
-                    uint32_t estimatedStackSize = 1024; // Conservative estimate
+                    uint32_t estimatedStackSize = T76_SAFETY_DEFAULT_STACK_ESTIMATE; // Conservative estimate
                     if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining < estimatedStackSize) {
                         gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = estimatedStackSize;
                         gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize - gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining;
                     } else {
                         // If remaining > estimated, adjust our estimate
-                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining + 256; // Add some used space estimate
-                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = 256; // Conservative estimate
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining + T76_SAFETY_CONSERVATIVE_STACK_USED_ESTIMATE; // Add some used space estimate
+                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = T76_SAFETY_CONSERVATIVE_STACK_USED_ESTIMATE; // Conservative estimate
                     }
                     
                     gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = true;
                 }
             } else {
                 // Interrupt context or main stack - use approximate values
-                gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
+                gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = T76_SAFETY_ESTIMATED_MAIN_STACK_BASE - currentSP; // Estimated size
                 gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
                 gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in interrupt context
                 gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy
@@ -166,7 +166,7 @@ namespace T76::Sys::Safety {
         } else {
             // Core 1 - Bare metal context
             // Use approximate stack information
-            gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
+            gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = T76_SAFETY_ESTIMATED_MAIN_STACK_BASE - currentSP; // Estimated size
             gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
             gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in bare metal
             gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy on Core 1

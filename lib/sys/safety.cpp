@@ -104,7 +104,7 @@ namespace T76::Sys::Safety {
             gSharedFaultSystem->version = 1;
             gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->safetySystemReset = false;
-            gSharedFaultSystem->watchdogFailureCore = 255; // No failure initially
+            gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID; // No failure initially
         }
 
         // Only check for watchdog reboot if this is NOT the first boot
@@ -118,15 +118,15 @@ namespace T76::Sys::Safety {
                 // Create descriptive fault message including which core failed
                 static char watchdogFaultDesc[T76_SAFETY_MAX_FAULT_DESC_LEN];
                 uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
-                if (failureCore == 0) {
+                if (failureCore == T76_SAFETY_CORE0_ID) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 0 (FreeRTOS) stopped responding");
-                } else if (failureCore == 1) {
+                } else if (failureCore == T76_SAFETY_CORE1_ID) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 1 (bare-metal) stopped responding");
                 } else {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
-                            "Hardware watchdog timeout: likely core 0 failure");
+                            "Hardware watchdog timeout: Unknown core failure (core=%d)", failureCore);
                 }
                 
                 populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
@@ -146,7 +146,7 @@ namespace T76::Sys::Safety {
 
         // Clear the safety system reset flag and watchdog failure core for next boot
         gSharedFaultSystem->safetySystemReset = false;
-        gSharedFaultSystem->watchdogFailureCore = 255;  // Reset for next boot cycle
+        gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID;  // Reset for next boot cycle
 
         makeAllComponentsSafe();
         

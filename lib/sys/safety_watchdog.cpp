@@ -35,9 +35,9 @@
 
 namespace T76::Sys::Safety {
 
-    // Inter-core communication constants
-    static const uint32_t CORE1_HEARTBEAT_TIMEOUT_MS = 2000;  // 2 seconds max between heartbeats
-    static const uint32_t WATCHDOG_TASK_PERIOD_MS = 500;     // Check every 500ms
+    // Inter-core communication constants - now using centralized configuration
+    static const uint32_t CORE1_HEARTBEAT_TIMEOUT_MS = T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS;
+    static const uint32_t WATCHDOG_TASK_PERIOD_MS = T76_SAFETY_WATCHDOG_TASK_PERIOD_MS;
     
     /*
      * Timeout Hierarchy:
@@ -92,13 +92,13 @@ namespace T76::Sys::Safety {
             // Only feed watchdog if both cores are healthy
             if (core0Healthy && core1Healthy && gWatchdogInitialized) {
                 watchdog_update();
-                gSharedFaultSystem->watchdogFailureCore = 255;  // Reset failure indicator when healthy
+                gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID;  // Reset failure indicator when healthy
             } else {
                 // Record which core failed first (for hardware watchdog handler)
-                if (!core0Healthy && gSharedFaultSystem->watchdogFailureCore == 255) {
-                    gSharedFaultSystem->watchdogFailureCore = 0;  // Core 0 failed
-                } else if (!core1Healthy && gSharedFaultSystem->watchdogFailureCore == 255) {
-                    gSharedFaultSystem->watchdogFailureCore = 1;  // Core 1 failed
+                if (!core0Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
+                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE0_ID;  // Core 0 failed
+                } else if (!core1Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
+                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE1_ID;  // Core 1 failed
                 }
                 // Don't feed watchdog - let hardware watchdog reset the system
             }
@@ -153,9 +153,9 @@ namespace T76::Sys::Safety {
         BaseType_t result = xTaskCreate(
             watchdogManagerTask,
             "WatchdogMgr",
-            configMINIMAL_STACK_SIZE * 2,  // Give it enough stack
+            T76_SAFETY_WATCHDOG_TASK_STACK_SIZE,  // Give it enough stack
             nullptr,
-            1,                             // Lowest priority - only runs when system is idle
+            T76_SAFETY_WATCHDOG_TASK_PRIORITY,    // Lowest priority - only runs when system is idle
             nullptr
         );
 

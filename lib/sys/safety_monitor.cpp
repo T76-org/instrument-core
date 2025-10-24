@@ -250,11 +250,11 @@ namespace T76::Sys {
                     for (uint32_t i = 0; i < Safety::gSharedFaultSystem->rebootCount && i < T76_SAFETY_MAX_REBOOTS; i++) {
                         printf("--- FAULT #%lu ---\n", i + 1);
                         printFaultInfoToConsole(Safety::gSharedFaultSystem->faultHistory[i]);
-                        vTaskDelay(1000 / portTICK_PERIOD_MS); // Wait 1 second between fault reports
+                        vTaskDelay(T76_SAFETY_MONITOR_REPORT_INTERVAL_MS / portTICK_PERIOD_MS); // Wait between fault reports
                     }
                 }
                 
-                vTaskDelay(2000 / portTICK_PERIOD_MS); // Wait 2 seconds before repeating the cycle
+                vTaskDelay(T76_SAFETY_MONITOR_CYCLE_DELAY_MS / portTICK_PERIOD_MS); // Wait before repeating the cycle
             }
         }
 
@@ -292,18 +292,18 @@ namespace T76::Sys {
             xTaskCreate(
                 tinyUSBTask,
                 "SafetyMonitor_USB",
-                256,
+                T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE,
                 nullptr,
-                1,
+                T76_SAFETY_MONITOR_USB_TASK_PRIORITY,
                 nullptr
             );
 
             xTaskCreate(
                 faultReporterTask,
                 "SafetyMonitor_Reporter",
-                256,  // Reduced stack size since we're using minimal stack design
+                T76_SAFETY_MONITOR_REPORTER_STACK_SIZE,  // Reduced stack size since we're using minimal stack design
                 nullptr,
-                2,    // Higher priority for fault reporting
+                T76_SAFETY_MONITOR_REPORTER_PRIORITY,    // Higher priority for fault reporting
                 nullptr
             );
 
