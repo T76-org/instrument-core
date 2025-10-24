@@ -123,7 +123,7 @@ namespace T76::Sys::Safety {
             if (!gSharedFaultSystem->safetySystemReset) {
                 // This was a genuine watchdog timeout, not a safety system reset
                 // Check which core caused the failure
-                uint8_t failureCore = getWatchdogFailureCore();
+                uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
 
                 switch (failureCore) {
                     case 0:

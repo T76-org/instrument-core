@@ -82,8 +82,6 @@ void printTask(void *params) {
         // f[0] = 0;
         
         vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        while (true) {}
     }
 }
 
@@ -98,7 +96,7 @@ void core1Task() {
 
     while (true) {
         // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
-        T76::Sys::Safety::sendCore1Heartbeat();
+        T76::Sys::Safety::feedWatchdogFromCore1();
         
         // Your application code here
         char *ptr = static_cast<char*>(malloc(320));
@@ -128,7 +126,7 @@ int main() {
     status_led_init();
 
     // Initialize dual-core watchdog system (must be done on Core 0)
-    if (!T76::Sys::Safety::initDualCoreWatchdog()) {
+    if (!T76::Sys::Safety::watchDogInit()) {
         // Handle watchdog initialization failure
         T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
                                      "Failed to initialize dual-core watchdog system",

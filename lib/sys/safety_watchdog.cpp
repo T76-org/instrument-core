@@ -129,7 +129,7 @@ namespace T76::Sys::Safety {
      * @note Uses T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS for hardware watchdog timeout
      * @note Creates a low-priority FreeRTOS task that only runs when system is idle
      */
-    bool initDualCoreWatchdog() {
+    bool watchDogInit() {
         // Only allow initialization on Core 0
         if (get_core_num() != 0) {
             return false;
@@ -183,7 +183,7 @@ namespace T76::Sys::Safety {
      * @note Must be called regularly (at least every 1 second)
      * @note No-op if called from Core 0 or if watchdog system not initialized
      */
-    void sendCore1Heartbeat() {
+    void feedWatchdogFromCore1() {
         // Only send heartbeats from Core 1
         if (get_core_num() != 1 || !gWatchdogInitialized) {
             return;
@@ -204,21 +204,7 @@ namespace T76::Sys::Safety {
      * @note Redirects to sendCore1Heartbeat() for backward compatibility
      */
     void feedWatchdog() {
-        sendCore1Heartbeat();
-    }
-
-    /**
-     * @brief Get which core caused the last watchdog timeout
-     * 
-     * Returns the core number that caused the watchdog timeout, as detected
-     * by the dual-core watchdog manager before the hardware reset occurred.
-     * This information survives the hardware reset and allows for accurate
-     * fault reporting.
-     * 
-     * @return 0 if Core 0 failed, 1 if Core 1 failed, 255 if unknown/no failure
-     */
-    uint8_t getWatchdogFailureCore() {
-        return gSharedFaultSystem->watchdogFailureCore;
+        feedWatchdogFromCore1();
     }
 
 } // namespace T76::Sys::Safety

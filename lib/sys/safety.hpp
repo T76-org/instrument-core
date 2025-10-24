@@ -159,7 +159,7 @@ namespace T76::Sys::Safety {
      * 
      * @return true if watchdog system was successfully initialized, false on error
      */
-    bool initDualCoreWatchdog();
+    bool watchDogInit();
 
     /**
      * @brief Send heartbeat from Core 1 to indicate it's alive
@@ -172,7 +172,7 @@ namespace T76::Sys::Safety {
      * @note Safe to call from any context on Core 1 (interrupt or main thread)
      * @note No-op if called from Core 0 or if watchdog system not initialized
      */
-    void sendCore1Heartbeat();
+    void feedWatchdogFromCore1();
 
     /**
      * @brief Register a component with the safety system

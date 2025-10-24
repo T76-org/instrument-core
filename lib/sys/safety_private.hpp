@@ -250,17 +250,6 @@ namespace T76::Sys::Safety {
     void resetRebootCounter();
 
     /**
-     * @brief Get which core caused the last watchdog timeout
-     * 
-     * Returns the core number that caused the watchdog timeout, as detected
-     * by the dual-core watchdog manager before the hardware reset occurred.
-     * 
-     * @return 0 if Core 0 failed, 1 if Core 1 failed, 255 if unknown/no failure
-     */
-    uint8_t getWatchdogFailureCore();
-
-
-    /**
      * @brief Report a fault to the safety system
      * 
      * This function is used internally by system hooks and wrapper functions
