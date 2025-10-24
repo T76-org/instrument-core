@@ -129,7 +129,7 @@ namespace T76::Sys::Safety {
      * @note Uses T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS for hardware watchdog timeout
      * @note Creates a low-priority FreeRTOS task that only runs when system is idle
      */
-    bool watchDogInit() {
+    bool watchdogInit() {
         // Only allow initialization on Core 0
         if (get_core_num() != 0) {
             return false;
@@ -191,20 +191,6 @@ namespace T76::Sys::Safety {
 
         // Update shared timestamp (32-bit write is atomic on ARM Cortex-M33)
         gCore1LastHeartbeat = to_ms_since_boot(get_absolute_time());
-    }
-
-    /**
-     * @brief Legacy function for backward compatibility
-     * 
-     * This function is maintained for backward compatibility with existing
-     * Core 1 code that calls feedWatchdog(). It now sends a heartbeat instead
-     * of directly feeding the hardware watchdog.
-     * 
-     * @deprecated Use sendCore1Heartbeat() instead for clearer intent
-     * @note Redirects to sendCore1Heartbeat() for backward compatibility
-     */
-    void feedWatchdog() {
-        feedWatchdogFromCore1();
     }
 
 } // namespace T76::Sys::Safety

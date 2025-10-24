@@ -225,11 +225,6 @@ Send heartbeat from Core 1 to indicate it's alive.
 
 **Note:** Safe to call from any context on Core 1. No-op if called from Core 0.
 
-#### `void feedWatchdog()` (deprecated)
-Legacy function for backward compatibility.
-
-**Deprecated:** Use `sendCore1Heartbeat()` instead for clearer intent. This function now redirects to `sendCore1Heartbeat()`.
-
 ### Reboot Limiting
 
 #### `void resetRebootCounter()`

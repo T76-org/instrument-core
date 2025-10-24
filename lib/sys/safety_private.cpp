@@ -60,36 +60,6 @@ namespace T76::Sys::Safety {
     critical_section_t gSafetyCriticalSection;
 
     /**
-     * @brief Static buffer for file names during fault handling
-     * 
-     * Pre-allocated buffer used for file name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     * Sized to accommodate maximum file name length as defined by
-     * T76_SAFETY_MAX_FILE_NAME_LEN.
-     */
-    char gStaticFileName[T76_SAFETY_MAX_FILE_NAME_LEN];
-
-    /**
-     * @brief Static buffer for function names during fault handling
-     * 
-     * Pre-allocated buffer used for function name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     * Sized to accommodate maximum function name length as defined by
-     * T76_SAFETY_MAX_FUNCTION_NAME_LEN.
-     */
-    char gStaticFunctionName[T76_SAFETY_MAX_FUNCTION_NAME_LEN];
-
-    /**
-     * @brief Static buffer for fault descriptions during fault handling
-     * 
-     * Pre-allocated buffer used for fault description string operations
-     * during fault handling to minimize stack usage in critical error paths.
-     * Sized to accommodate maximum description length as defined by
-     * T76_SAFETY_MAX_FAULT_DESC_LEN.
-     */
-    char gStaticDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
-
-    /**
      * @brief Core 1 watchdog initialization status flag
      * 
      * Tracks whether the hardware watchdog has been initialized for Core 1

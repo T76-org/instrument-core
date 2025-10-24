@@ -126,7 +126,7 @@ int main() {
     status_led_init();
 
     // Initialize dual-core watchdog system (must be done on Core 0)
-    if (!T76::Sys::Safety::watchDogInit()) {
+    if (!T76::Sys::Safety::watchdogInit()) {
         // Handle watchdog initialization failure
         T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
                                      "Failed to initialize dual-core watchdog system",

@@ -32,7 +32,6 @@
 #include <pico/time.h>
 #include <pico/critical_section.h>
 #include <hardware/watchdog.h>
-#include <hardware/irq.h>
 
 
 // ========== T76 SAFETY SYSTEM CONFIGURATION PARAMETERS ==========
@@ -164,7 +163,6 @@ namespace T76::Sys::Safety {
      */
     struct SharedFaultSystem {
         volatile uint32_t magic;                    ///< Magic number for structure validation
-        volatile uint32_t version;                  ///< Structure version for compatibility
         FaultInfo lastFaultInfo;                    ///< Information about the last fault
         
         // Reboot limiting and fault history
@@ -210,30 +208,6 @@ namespace T76::Sys::Safety {
      * with automatic interrupt handling.
      */
     extern critical_section_t gSafetyCriticalSection;
-
-    /**
-     * @brief Static buffer for file names to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for file name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    extern char gStaticFileName[];
-
-    /**
-     * @brief Static buffer for function names to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for function name string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    extern char gStaticFunctionName[];
-
-    /**
-     * @brief Static buffer for fault descriptions to avoid stack allocation
-     * 
-     * Pre-allocated buffer used for fault description string operations during
-     * fault handling to minimize stack usage in critical error paths.
-     */
-    extern char gStaticDescription[];
 
     /**
      * @brief Watchdog initialization state

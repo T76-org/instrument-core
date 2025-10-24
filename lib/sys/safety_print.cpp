@@ -32,7 +32,6 @@
 #include <pico/stdlib.h>
 #include <pico/time.h>
 #include <hardware/watchdog.h>
-#include <hardware/irq.h>
 
 #include "safety.hpp"
 #include "safety_private.hpp"

@@ -19,7 +19,6 @@
 #include <pico/time.h>
 #include <pico/critical_section.h>
 #include <hardware/watchdog.h>
-#include <hardware/irq.h>
 
 #include "safety.hpp"
 #include "safety_monitor.hpp"
@@ -101,7 +100,6 @@ namespace T76::Sys::Safety {
             isFirstBoot = true;
             memset(gSharedFaultSystem, 0, sizeof(SharedFaultSystem));
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
-            gSharedFaultSystem->version = 1;
             gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->safetySystemReset = false;
             gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID; // No failure initially

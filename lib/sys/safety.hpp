@@ -159,7 +159,7 @@ namespace T76::Sys::Safety {
      * 
      * @return true if watchdog system was successfully initialized, false on error
      */
-    bool watchDogInit();
+    bool watchdogInit();
 
     /**
      * @brief Send heartbeat from Core 1 to indicate it's alive
