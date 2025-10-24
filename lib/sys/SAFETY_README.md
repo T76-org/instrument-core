@@ -71,6 +71,20 @@ The system tracks consecutive reboots and enters Safety Monitor mode when a conf
 - **Safety Monitor**: Displays all faults when limit is exceeded
 - **Reset Counter**: Application can reset counter after successful operation
 
+#### Auto-Reset of Reboot Counter (Optional)
+
+To avoid entering Safety Monitor due to faults that are far apart in time, you can
+configure the system to automatically reset the consecutive reboot counter after a
+period of stable runtime. Configure at build time using the macro below:
+
+- Build-time default (seconds): `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` (0 = disabled)
+
+Notes:
+- The timeout is per boot. If a fault-triggered reboot occurs before the timeout elapses,
+  the counter increments and the timeout restarts on the next boot.
+- Setting the value to 0 disables the auto-reset (the counter will never be reset automatically).
+- Only the reboot counter is affected; fault history entries remain available for analysis.
+
 ## Quick Start
 
 ### 1. Initialization

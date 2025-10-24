@@ -56,6 +56,11 @@
 
 // === Safety Recovery Configuration ===
 #define T76_SAFETY_MAX_REBOOTS 3                    ///< Maximum consecutive reboots before entering safety monitor mode
+// If > 0, fault reboot counter will automatically reset after this many seconds
+// of stable runtime without a fault-triggered reboot. 0 disables auto-reset.
+#ifndef T76_SAFETY_FAULTCOUNT_RESET_SECONDS
+#define T76_SAFETY_FAULTCOUNT_RESET_SECONDS 0
+#endif
 
 // === Dual-Core Watchdog System Configuration ===
 #define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000 ///< Hardware watchdog timeout in milliseconds (5 seconds)

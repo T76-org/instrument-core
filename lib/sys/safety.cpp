@@ -27,6 +27,46 @@
 
 namespace T76::Sys::Safety {
 
+    // === Consecutive fault reboot counter auto-reset (optional) ===
+    // Implemented using a Pico SDK hardware alarm so it works even before
+    // the FreeRTOS scheduler starts. When it fires, it clears the reboot
+    // counter with proper critical section protection. A value of 0 seconds
+    // disables the auto-reset (no alarm scheduled).
+
+    static alarm_id_t gFaultCountResetAlarmId = 0;          // 0 => no alarm scheduled
+
+    static int64_t faultCountResetAlarmCallback(alarm_id_t /*id*/, void* /*user_data*/) {
+        // Clear reboot counter after stable runtime window has elapsed
+        if (gSharedFaultSystem && gSafetyCriticalSection.spin_lock) {
+            critical_section_enter_blocking(&gSafetyCriticalSection);
+            gSharedFaultSystem->rebootCount = 0;
+            critical_section_exit(&gSafetyCriticalSection);
+        }
+        // Mark alarm as inactive
+        gFaultCountResetAlarmId = 0;
+        // Returning 0 cancels the alarm (one-shot)
+        return 0;
+    }
+
+    static void scheduleFaultCountResetAlarm(uint32_t seconds) {
+        // Cancel any existing alarm first
+        if (gFaultCountResetAlarmId != 0) {
+            cancel_alarm(gFaultCountResetAlarmId);
+            gFaultCountResetAlarmId = 0;
+        }
+
+        // Schedule a new one-shot alarm if enabled
+        if (seconds > 0) {
+            const uint64_t delay_ms = static_cast<uint64_t>(seconds) * 1000ULL;
+            gFaultCountResetAlarmId = add_alarm_in_ms(
+                delay_ms,
+                faultCountResetAlarmCallback,
+                nullptr,
+                true /* fire_if_past */
+            );
+        }
+    }
+
     /**
      * @brief Core fault handling function - minimal stack usage
      * 
@@ -146,7 +186,10 @@ namespace T76::Sys::Safety {
         gSharedFaultSystem->safetySystemReset = false;
         gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID;  // Reset for next boot cycle
 
-        makeAllComponentsSafe();
+    makeAllComponentsSafe();
+
+    // Configure and schedule auto-reset of reboot counter if enabled by default macro
+    scheduleFaultCountResetAlarm(T76_SAFETY_FAULTCOUNT_RESET_SECONDS);
         
         // Check reboot count and handle safety monitor
         if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
@@ -245,5 +288,7 @@ namespace T76::Sys::Safety {
         memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
         critical_section_exit(&gSafetyCriticalSection);
     }
+
+    // No runtime setter; timeout is configured via T76_SAFETY_FAULTCOUNT_RESET_SECONDS.
 
 } // namespace T76::Sys::Safety
