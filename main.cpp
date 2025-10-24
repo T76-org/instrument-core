@@ -30,7 +30,7 @@ public:
 
     bool activate() {
         gpio_put(3, true);
-        return false;
+        return true;
     }
 
     void makeSafe() {
@@ -82,31 +82,23 @@ void printTask(void *params) {
         // f[0] = 0;
         
         vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        while (true) {}
     }
 }
 
 /**
  * @brief This task runs on core 1 and prints messages to the console. It
  *        does not use FreeRTOS and demonstrates that both cores are active.
+ *        Now sends periodic heartbeats to Core 0 for dual-core watchdog protection.
  * 
  */
 void core1Task() {
-    // Initialize safety system on Core 1
-    T76::Sys::Safety::safetyInit();
-    
-    // Initialize Core 1 watchdog protection (5 second timeout)
-    if (!T76::Sys::Safety::initCore1Watchdog()) {
-        // Handle watchdog initialization failure
-        T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-                                     "Failed to initialize Core 1 watchdog",
-                                     __FILE__, __LINE__, __FUNCTION__);
-    }
-    
     int count = 0;
 
     while (true) {
-        // Feed the watchdog to prevent timeout
-        // T76::Sys::Safety::feedWatchdog();
+        // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
+        T76::Sys::Safety::sendCore1Heartbeat();
         
         // Your application code here
         char *ptr = static_cast<char*>(malloc(320));
@@ -115,7 +107,7 @@ void core1Task() {
         free(ptr);
         status_led_set_state(!status_led_get_state());
         
-        sleep_ms(100);
+        sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)
     }
 }
 
@@ -135,6 +127,14 @@ int main() {
     stdio_init_all();
     status_led_init();
 
+    // Initialize dual-core watchdog system (must be done on Core 0)
+    if (!T76::Sys::Safety::initDualCoreWatchdog()) {
+        // Handle watchdog initialization failure
+        T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+                                     "Failed to initialize dual-core watchdog system",
+                                     __FILE__, __LINE__, __FUNCTION__);
+    }
+    
     // Reset core 1 and start a new task in it.
     // This must be done before starting the FreeRTOS scheduler.
     multicore_reset_core1();
@@ -155,7 +155,7 @@ int main() {
         "print",
         2256,
         NULL,
-        1,
+        10,
         NULL
     );
 

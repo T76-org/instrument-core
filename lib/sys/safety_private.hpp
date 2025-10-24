@@ -40,8 +40,10 @@
 #define T76_SAFETY_MAX_FILE_NAME_LEN 128       ///< Max file name length
 #define T76_SAFETY_MAX_REBOOTS 3               ///< Maximum number of consecutive reboots before entering safety monitor
 
-// Core 1 watchdog configuration
-#define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000    ///< Default watchdog timeout (5 seconds)
+// Dual-core watchdog configuration
+#define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000    ///< Default hardware watchdog timeout (5 seconds)
+#define T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS 2000     ///< Core 1 heartbeat timeout (2 seconds)
+#define T76_SAFETY_WATCHDOG_TASK_PERIOD_MS 500         ///< Watchdog manager task check period (500ms)
 
 // Component registry configuration
 #define T76_SAFETY_MAX_REGISTERED_COMPONENTS 32        ///< Maximum number of components that can be registered
@@ -137,6 +139,7 @@ namespace T76::Sys::Safety {
         
         // Watchdog management
         volatile bool safetySystemReset;            ///< True if last reset was triggered by safety system
+        volatile uint8_t watchdogFailureCore;       ///< Core that caused watchdog timeout (0, 1, or 255=unknown)
     };
 
     /**
@@ -245,6 +248,16 @@ namespace T76::Sys::Safety {
      * running successfully for several minutes without faults.
      */
     void resetRebootCounter();
+
+    /**
+     * @brief Get which core caused the last watchdog timeout
+     * 
+     * Returns the core number that caused the watchdog timeout, as detected
+     * by the dual-core watchdog manager before the hardware reset occurred.
+     * 
+     * @return 0 if Core 0 failed, 1 if Core 1 failed, 255 if unknown/no failure
+     */
+    uint8_t getWatchdogFailureCore();
 
 
     /**

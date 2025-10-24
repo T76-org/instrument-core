@@ -82,11 +82,64 @@ void main() {
     // Initialize safety system early in boot process
     T76::Sys::Safety::safetyInit();
     
+    // Initialize dual-core watchdog protection (Core 0 only)
+    if (!T76::Sys::Safety::initDualCoreWatchdog()) {
+        T76::Sys::Safety::reportFault(__FILE__, __LINE__, __FUNCTION__,
+                                     T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+                                     "Failed to initialize dual-core watchdog");
+    }
+    
     // Your application initialization...
 }
 ```
 
-### 2. Basic Fault Reporting
+### 2. Dual-Core Watchdog Protection
+
+The system provides comprehensive watchdog protection for both cores:
+
+**Core 0 (FreeRTOS) Setup:**
+```cpp
+void main() {
+    T76::Sys::Safety::safetyInit();
+    
+    // Initialize dual-core watchdog system (must be called on Core 0)
+    T76::Sys::Safety::initDualCoreWatchdog();
+    
+    // Launch Core 1 task
+    multicore_launch_core1(core1Task);
+    
+    // Start FreeRTOS scheduler
+    vTaskStartScheduler();
+}
+```
+
+**Core 1 (Bare Metal) Setup:**
+```cpp
+void core1Task() {
+    while (true) {
+        // Send heartbeat to indicate Core 1 is alive (at least every 1 second)
+        T76::Sys::Safety::sendCore1Heartbeat();
+        
+        // Your Core 1 application code here...
+        doCore1Work();
+        
+        sleep_ms(100);  // Send heartbeats frequently
+    }
+}
+```
+
+**How It Works:**
+- Core 0 manages the hardware watchdog via a FreeRTOS task
+- Core 1 sends periodic heartbeats to Core 0 via shared memory timestamp
+- Hardware watchdog is only fed when both cores are confirmed healthy
+- System resets if either core fails to respond within timeout
+
+**Timeout Hierarchy:**
+- Core 1 heartbeat timeout: 2 seconds
+- Watchdog manager check period: 500ms
+- Hardware watchdog timeout: 5 seconds
+
+### 3. Basic Fault Reporting
 
 ```cpp
 // Simple fault with minimal information
@@ -155,6 +208,27 @@ Report a fault and trigger system reset. System will return to safe state upon r
 
 #### `void clearFaultHistory()`
 Clear stored fault information.
+
+### Dual-Core Watchdog Functions
+
+#### `bool initDualCoreWatchdog()`
+Initialize the dual-core watchdog protection system.
+
+**Must be called on Core 0** during system initialization. Creates a low-priority FreeRTOS task that monitors both cores and manages the hardware watchdog. The task only runs when no other tasks need CPU time, ensuring it doesn't interfere with system operation while still detecting genuine faults.
+
+**Returns:** `true` if initialization successful, `false` on error
+
+#### `void sendCore1Heartbeat()`
+Send heartbeat from Core 1 to indicate it's alive.
+
+**Must be called regularly from Core 1** (at least every 1 second) to indicate that Core 1 is operational. Uses simple shared memory for communication.
+
+**Note:** Safe to call from any context on Core 1. No-op if called from Core 0.
+
+#### `void feedWatchdog()` (deprecated)
+Legacy function for backward compatibility.
+
+**Deprecated:** Use `sendCore1Heartbeat()` instead for clearer intent. This function now redirects to `sendCore1Heartbeat()`.
 
 ### Reboot Limiting
 

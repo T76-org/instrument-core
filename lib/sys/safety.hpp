@@ -145,32 +145,34 @@ namespace T76::Sys::Safety {
 
 
     /**
-     * @brief Initialize Core 1 watchdog protection
+     * @brief Initialize dual-core watchdog protection system
      * 
-     * Sets up hardware watchdog for Core 1 protection using the configured timeout
-     * (T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS). The application must call 
-     * feedWatchdog() periodically to prevent watchdog timeout.
+     * Sets up a dual-core watchdog system where Core 0 manages the hardware watchdog
+     * and Core 1 sends periodic heartbeats. The system creates a FreeRTOS task on
+     * Core 0 that monitors both cores and only feeds the hardware watchdog when both
+     * cores are confirmed healthy.
      * 
-     * @note Should only be called on Core 1
-     * @note Application must call feedWatchdog() regularly to prevent timeout
-     * @note Recommended to call feedWatchdog() at least every 50% of timeout interval
-     * @note Uses T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS for timeout value
+     * @note Must be called on Core 0 during system initialization
+     * @note Core 1 must call sendCore1Heartbeat() regularly after this initialization
+     * @note Uses T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS for hardware watchdog timeout
+     * @note Creates a low-priority FreeRTOS task that only runs when system is idle
      * 
-     * @return true if watchdog was successfully initialized, false on error
+     * @return true if watchdog system was successfully initialized, false on error
      */
-    bool initCore1Watchdog();
+    bool initDualCoreWatchdog();
 
     /**
-     * @brief Feed the watchdog to prevent timeout
+     * @brief Send heartbeat from Core 1 to indicate it's alive
      * 
-     * Resets the watchdog timer. This function must be called periodically
-     * by the application to prevent watchdog timeout and system reset.
+     * This function should be called periodically by Core 1 to indicate that
+     * it's still operational. The heartbeat updates a shared memory timestamp
+     * that is monitored by the watchdog manager task running on Core 0.
      * 
-     * @note Should be called at least every 50% of the configured timeout interval
-     * @note Safe to call from any context (interrupt or main thread)
-     * @note Only effective if initCore1Watchdog() has been called first
+     * @note Should be called only from Core 1 at least every 1 second
+     * @note Safe to call from any context on Core 1 (interrupt or main thread)
+     * @note No-op if called from Core 0 or if watchdog system not initialized
      */
-    void feedWatchdog();
+    void sendCore1Heartbeat();
 
     /**
      * @brief Register a component with the safety system

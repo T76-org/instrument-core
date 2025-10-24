@@ -113,6 +113,7 @@ namespace T76::Sys::Safety {
             gSharedFaultSystem->rebootCount = 0; // No faults yet
             gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
             gSharedFaultSystem->safetySystemReset = false;
+            gSharedFaultSystem->watchdogFailureCore = 255; // No failure initially
         }
 
         // Only check for watchdog reboot if this is NOT the first boot
@@ -121,11 +122,34 @@ namespace T76::Sys::Safety {
             // Check if last reboot was caused by watchdog timeout (not safety system reset)
             if (!gSharedFaultSystem->safetySystemReset) {
                 // This was a genuine watchdog timeout, not a safety system reset
-                // Create a watchdog timeout fault entry
-                populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
-                                "Hardware watchdog timeout - Core 1 may have hung",
-                                "system", 0, "watchdog");
-                gSharedFaultSystem->lastFaultCore = 1; // Assume Core 1 since it's the one being protected
+                // Check which core caused the failure
+                uint8_t failureCore = getWatchdogFailureCore();
+
+                switch (failureCore) {
+                    case 0:
+                        // Core 0 (FreeRTOS scheduler) failure
+                        populateFaultInfo(FaultType::INTERCORE_FAULT, 
+                                        "Hardware watchdog timeout - Core 0 FreeRTOS scheduler failure",
+                                        "system", 0, "watchdog");
+                        gSharedFaultSystem->lastFaultCore = 0;
+                        break;
+                    
+                    case 1:
+                        // Core 1 heartbeat timeout
+                        populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
+                                        "Hardware watchdog timeout - Core 1 heartbeat timeout",
+                                        "system", 0, "watchdog");
+                        gSharedFaultSystem->lastFaultCore = 1;
+                        break;
+                    
+                    default:
+                        // This probably means that a task on core 0 hung
+                        populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
+                                        "Hardware watchdog timeout - likely core 0 failure",
+                                        "system", 0, "watchdog");
+                        gSharedFaultSystem->lastFaultCore = 1; // Default assumption
+                        break;
+                }
                 
                 // Manually add to fault history (like reportFault does but without immediate reset)
                 if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
@@ -136,8 +160,9 @@ namespace T76::Sys::Safety {
             }
         }
 
-        // Clear the safety system reset flag for next boot
+        // Clear the safety system reset flag and watchdog failure core for next boot
         gSharedFaultSystem->safetySystemReset = false;
+        gSharedFaultSystem->watchdogFailureCore = 255;  // Reset for next boot cycle
 
         makeAllComponentsSafe();
         
