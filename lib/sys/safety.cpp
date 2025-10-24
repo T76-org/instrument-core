@@ -121,25 +121,16 @@ namespace T76::Sys::Safety {
                 switch (failureCore) {
                     case 0:
                         // Core 0 (FreeRTOS scheduler) failure
-                        populateFaultInfo(FaultType::INTERCORE_FAULT, 
-                                        "Hardware watchdog timeout - Core 0 FreeRTOS scheduler failure",
-                                        "system", 0, "watchdog");
                         gSharedFaultSystem->lastFaultCore = 0;
                         break;
                     
                     case 1:
                         // Core 1 heartbeat timeout
-                        populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
-                                        "Hardware watchdog timeout - Core 1 heartbeat timeout",
-                                        "system", 0, "watchdog");
                         gSharedFaultSystem->lastFaultCore = 1;
                         break;
                     
                     default:
                         // This probably means that a task on core 0 hung
-                        populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
-                                        "Hardware watchdog timeout - likely core 0 failure",
-                                        "system", 0, "watchdog");
                         gSharedFaultSystem->lastFaultCore = 1; // Default assumption
                         break;
                 }
