@@ -69,13 +69,6 @@ namespace T76::Sys::Safety {
             spin_unlock(gSafetySpinlock, savedIrq);
         }
 
-        // Give a brief moment for any pending output to complete
-        // Use busy wait to avoid function call overhead
-        uint32_t start_time = to_ms_since_boot(get_absolute_time());
-        while ((to_ms_since_boot(get_absolute_time()) - start_time) < 100) {
-            tight_loop_contents();
-        }
-
         // Perform immediate system reset using watchdog
         // System will automatically return to safe state upon reset
         watchdog_enable(1, 1);
