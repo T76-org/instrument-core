@@ -11,17 +11,8 @@
  * This approach is more reliable and handles all reset scenarios (including hardware
  * watchdog timeouts) uniformly.
  * 
- * This safety system has been optimized to use the absolute minimum stack space possible
- * and uses only static memory allocation. Key optimizations include:
- * 
- * - Direct operation on shared memory structures (no stack copies)
- * - Elimination of printf/snprintf from core fault handling
- * - Minimal string operations using custom safe functions
- * - Inlined critical functions to reduce call stack depth
- * - Static buffers for all string operations
- * - Reduced function parameters and local variables
- * - Eliminated all struct references and local pointers
- * - Direct global memory access (no intermediate pointer variables)
+ * This safety system is optimized for minimal stack usage with static-only memory
+ * allocation throughout fault handling paths.
  * 
  * Multi-Core Fault Handling:
  * ==========================
@@ -64,8 +55,7 @@
  *   * Provides detailed fault history output via USB console
  *   * Requires manual system reset to clear fault state and resume operation
  * 
- * _Note:_ This code was partially developed with the assistance of AI.
- * 
+ *
  */
 
 #pragma once
@@ -141,8 +131,6 @@ namespace T76::Sys::Safety {
      * and configures the default fault handlers.
      */
     void safetyInit();
-
-
 
     /**
      * @brief Initialize dual-core watchdog protection system

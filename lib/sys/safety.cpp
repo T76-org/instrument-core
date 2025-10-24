@@ -33,6 +33,11 @@ namespace T76::Sys::Safety {
     // counter with proper critical section protection. A value of 0 seconds
     // disables the auto-reset (no alarm scheduled).
 
+    /**
+     * @brief Alarm ID for the one-shot reboot counter auto-reset.
+     *
+     * 0 indicates no alarm scheduled; otherwise holds the active alarm ID.
+     */
     static alarm_id_t gFaultCountResetAlarmId = 0;          // 0 => no alarm scheduled
 
     static int64_t faultCountResetAlarmCallback(alarm_id_t /*id*/, void* /*user_data*/) {
@@ -68,27 +73,11 @@ namespace T76::Sys::Safety {
     }
 
     /**
-     * @brief Core fault handling function - minimal stack usage
-     * 
-     * Final stage of fault processing that triggers system reset for recovery.
-     * Designed for maximum reliability with minimal stack and resource usage.
-     * 
-     * With safe-by-default design, the system automatically returns to a safe
-     * state upon reset, eliminating the need for active safing functions.
-     * 
-     * Sequence of operations:
-     * 1. Mark system as being in fault state (for persistent tracking)
-     * 2. Set safety system reset flag to distinguish from watchdog timeout
-     * 3. Allow brief time for pending output to complete
-     * 4. Trigger immediate system reset via watchdog
-     * 
-     * This function never returns - it always results in system reset.
-     * The fault information will persist in uninitialized memory for
-     * analysis by the Safety Monitor on the next boot.
-     * 
-     * @note Uses busy-wait loops to avoid additional function call overhead
-     * @note Watchdog reset is more reliable than software reset mechanisms
-     * @note Thread-safe through critical section protection of shared state
+     * @brief Core fault handling: record and trigger watchdog reset.
+     *
+     * Marks the system as safety-reset, saves the current fault to history,
+     * and performs an immediate watchdog reset. The system returns to a safe
+     * state on reboot. Never returns.
      */
     static inline void handleFault() {
         // Mark system as being in fault state

@@ -1,26 +1,13 @@
 /**
  * @file safety_print.cpp
- * @copyright Copyright (c) 2025 MTA, Inc.
- * 
- * Implementation of fault information collection and string handling for the safety system.
- * 
- * This file provides functionality for gathering comprehensive fault information
- * and safely handling strings during fault conditions. It includes utilities for:
- * 
- * - Safe string copying with bounds checking and null pointer handling
- * - Stack information analysis using ARM Cortex-M registers and FreeRTOS APIs
- * - Heap statistics collection from FreeRTOS memory management
- * - Task and interrupt context information gathering
- * - Comprehensive fault data population in shared memory structures
- * 
- * All functions are optimized for minimal stack usage and operate directly on
- * shared memory structures to ensure reliability during fault handling. The
- * implementation handles different execution contexts (Core 0/1, task/interrupt)
- * and provides appropriate information based on available system services.
- * 
- * The fault information collected by this module is essential for debugging
- * and root cause analysis of system faults, providing detailed context about
- * system state at the time of failure.
+ * @brief Fault information collection and safe string handling for the safety system.
+ *
+ * Provides utilities for:
+ * - Safe string copying with bounds checks
+ * - Stack info analysis via ARM registers and FreeRTOS APIs
+ * - Heap statistics collection (Core 0)
+ * - Task/interrupt context capture
+ * - Populating fault data in shared memory
  */
 
 #include <cstring>

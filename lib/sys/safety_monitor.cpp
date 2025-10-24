@@ -65,20 +65,11 @@ namespace T76::Sys {
             }
         }
 
-        /**
-         * @brief Convert fault type enumeration to human-readable string
-         * 
-         * Provides string representation of fault types for console output and
-         * debugging purposes. Used by the Safety Monitor to display fault
-         * information in a readable format.
-         * 
-         * @param type The fault type enumeration to convert
-         * @return Constant string representing the fault type name
-         * 
-         * @note Returns "INVALID" for unknown or out-of-range fault types
-         * @note String literals are used for memory efficiency
-         * @note All fault types defined in FaultType enum are supported
-         */
+    /**
+     * @brief Convert fault type enumeration to a printable string.
+     * @param type Fault type.
+     * @return Constant string name.
+     */
         const char* faultTypeToString(const T76::Sys::Safety::FaultType type) {
             switch (type) {
                 case T76::Sys::Safety::FaultType::UNKNOWN: return "UNKNOWN";
@@ -98,27 +89,12 @@ namespace T76::Sys {
             }
         }
 
-        /**
-         * @brief Print comprehensive fault information to console
-         * 
-         * Outputs detailed fault information in a structured, human-readable format
-         * including all available fault context, system state, and debugging information.
-         * Only available in Safety Monitor mode where printf functionality is safe to use.
-         * 
-         * The output includes:
-         * - Basic fault metadata (timestamp, core, type, location)
-         * - Source code location (file, function, line number)
-         * - Task information (if applicable)
-         * - Memory status (heap usage)
-         * - Comprehensive stack analysis
-         * - Hardware context (interrupt status)
-         * 
-         * @param faultInfo Reference to fault information structure to display
-         * 
-         * @note Uses printf which is only safe in Safety Monitor context
-         * @note Handles cases where information may not be available
-         * @note Formats output for maximum readability and debugging value
-         */
+    /**
+     * @brief Print comprehensive fault information to console.
+     * Shows timestamp, core, type, source location, task (if any), heap stats,
+     * and stack details when available.
+     * @param faultInfo Fault information to display.
+     */
         static void printFaultInfoToConsole(const T76::Sys::Safety::FaultInfo& faultInfo) {
             printf("\n=== SYSTEM FAULT DETECTED ===\n");
             printf("Timestamp: %lu ms\n", faultInfo.timestamp);
@@ -157,27 +133,9 @@ namespace T76::Sys {
             printf("==============================\n\n");
         }
 
-        /**
-         * @brief Print complete fault history when reboot limit is exceeded
-         * 
-         * Displays comprehensive fault history when the system has experienced
-         * T76_SAFETY_MAX_REBOOTS consecutive faults, triggering Safety Monitor mode.
-         * Shows all faults that led to the current safety state for root cause analysis.
-         * 
-         * The output includes:
-         * - Header indicating reboot limit exceeded
-         * - Count of consecutive faults vs. configured limit
-         * - Complete fault information for each fault in chronological order
-         * - Instructions for manual intervention
-         * 
-         * This function provides critical debugging information to help identify
-         * patterns in system faults and root cause analysis for persistent issues.
-         * 
-         * @note Accesses shared fault system directly for fault history
-         * @note Handles cases where shared memory might not be available
-         * @note Only called when system enters Safety Monitor mode
-         * @note Output is designed for technical debugging and analysis
-         */
+    /**
+     * @brief Print fault history and reboot limit status.
+     */
         static void printFaultHistoryToConsole() {
             printf("\n\n");
             printf("=========================================\n");
@@ -204,31 +162,10 @@ namespace T76::Sys {
             printf("Manual intervention required.\n\n");
         }
 
-        /**
-         * @brief FreeRTOS task for continuous fault reporting and status indication
-         * 
-         * Main Safety Monitor task that provides continuous fault reporting and
-         * visual status indication when the system has entered safety mode due
-         * to excessive consecutive faults.
-         * 
-         * Task operations:
-         * 1. Displays initial fault history summary on startup
-         * 2. Continuously toggles status LED to indicate fault state
-         * 3. Outputs periodic status messages about reboot limit exceeded
-         * 4. Cycles through all fault reports with detailed information
-         * 5. Repeats the cycle indefinitely until manual reset
-         * 
-         * The task uses different timing intervals:
-         * - LED toggle and status: Continuous
-         * - Individual fault reports: 1 second intervals
-         * - Full cycle repeat: 2 second delay
-         * 
-         * @param param Unused task parameter (required by FreeRTOS task signature)
-         * 
-         * @note Runs with priority 2 (higher than USB task)
-         * @note Never returns - runs indefinitely until manual system reset
-         * @note Provides both visual (LED) and console (text) fault indication
-         */
+    /**
+     * @brief FreeRTOS task for continuous fault reporting and status indication.
+     * @param param Unused.
+     */
         static void faultReporterTask(void *param) {
             (void)param; // Parameter not needed, we'll get fault info from safety system
             
