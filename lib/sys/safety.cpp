@@ -55,7 +55,6 @@ namespace T76::Sys::Safety {
         // Mark system as being in fault state
         if (gSharedFaultSystem && gSafetySpinlock) {
             uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-            gSharedFaultSystem->lastFaultCore = get_core_num();
             gSharedFaultSystem->safetySystemReset = true; // Mark as safety system reset
             
             // Store current fault in fault history
@@ -104,7 +103,6 @@ namespace T76::Sys::Safety {
             gSharedFaultSystem->magic = FAULT_SYSTEM_MAGIC;
             gSharedFaultSystem->version = 1;
             gSharedFaultSystem->rebootCount = 0; // No faults yet
-            gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
             gSharedFaultSystem->safetySystemReset = false;
             gSharedFaultSystem->watchdogFailureCore = 255; // No failure initially
         }
@@ -114,27 +112,6 @@ namespace T76::Sys::Safety {
         if (wasWatchdogReboot && !isFirstBoot) {
             // Check if last reboot was caused by watchdog timeout (not safety system reset)
             if (!gSharedFaultSystem->safetySystemReset) {
-                // This was a genuine watchdog timeout, not a safety system reset
-                // Check which core caused the failure
-                uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
-
-                switch (failureCore) {
-                    case 0:
-                        // Core 0 (FreeRTOS scheduler) failure
-                        gSharedFaultSystem->lastFaultCore = 0;
-                        break;
-                    
-                    case 1:
-                        // Core 1 heartbeat timeout
-                        gSharedFaultSystem->lastFaultCore = 1;
-                        break;
-                    
-                    default:
-                        // This probably means that a task on core 0 hung
-                        gSharedFaultSystem->lastFaultCore = 1; // Default assumption
-                        break;
-                }
-                
                 // Manually add to fault history (like reportFault does but without immediate reset)
                 if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
                     uint32_t index = gSharedFaultSystem->rebootCount;
@@ -156,8 +133,6 @@ namespace T76::Sys::Safety {
             SafetyMonitor::runSafetyMonitor();
         }
         
-        gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
-
         gSafetyInitialized = true;
 
         // Try to activate all registered components
@@ -249,37 +224,5 @@ namespace T76::Sys::Safety {
         memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
         spin_unlock(gSafetySpinlock, savedIrq);
     }
-
-    /**
-     * @brief Reset the consecutive reboot counter
-     * 
-     * This function should be called by the application after successful
-     * initialization or operation to reset the consecutive reboot counter.
-     * This prevents the system from entering safety monitor mode due to
-     * a series of unrelated reboots.
-     * 
-     * @details The function:
-     * - Resets rebootCount to 0
-     * - Clears the fault history array
-     * - Updates the last boot timestamp
-     * 
-     * @note Thread-safe through spinlock protection
-     * @note Should be called after successful system operation/initialization
-     */
-    void resetRebootCounter() {
-        if (!gSharedFaultSystem || !gSafetySpinlock) {
-            return;
-        }
-
-        uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
-        
-        // Reset reboot count and clear fault history
-        gSharedFaultSystem->rebootCount = 0;
-        memset(gSharedFaultSystem->faultHistory, 0, sizeof(gSharedFaultSystem->faultHistory));
-        gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
-        
-        spin_unlock(gSafetySpinlock, savedIrq);
-    }
-
 
 } // namespace T76::Sys::Safety

@@ -112,7 +112,6 @@ namespace T76::Sys::Safety {
         char description[T76_SAFETY_MAX_FAULT_DESC_LEN];        ///< Human-readable fault description
         uint32_t taskHandle;                                    ///< FreeRTOS task handle (if applicable)
         char taskName[configMAX_TASK_NAME_LEN];                 ///< FreeRTOS task name (if applicable)
-        uint32_t faultSpecificData[4];                          ///< Additional fault-specific data
         uint32_t heapFreeBytes;                                 ///< Available heap at time of fault
         uint32_t minHeapFreeBytes;                              ///< Minimum heap free since boot
         bool isInInterrupt;                                     ///< True if fault occurred in interrupt context
@@ -129,13 +128,11 @@ namespace T76::Sys::Safety {
     struct SharedFaultSystem {
         volatile uint32_t magic;                    ///< Magic number for structure validation
         volatile uint32_t version;                  ///< Structure version for compatibility
-        volatile uint32_t lastFaultCore;            ///< Core ID of last fault
         FaultInfo lastFaultInfo;                    ///< Information about the last fault
         
         // Reboot limiting and fault history
         volatile uint32_t rebootCount;              ///< Number of consecutive fault-related reboots
         FaultInfo faultHistory[T76_SAFETY_MAX_REBOOTS]; ///< History of faults leading to reboots
-        volatile uint32_t lastBootTimestamp;        ///< Timestamp of last successful boot for timeout detection
         
         // Watchdog management
         volatile bool safetySystemReset;            ///< True if last reset was triggered by safety system
@@ -236,18 +233,6 @@ namespace T76::Sys::Safety {
                                   const char* file,
                                   uint32_t line,
                                   const char* function);
-
-    /**
-     * @brief Reset the reboot counter after successful operation
-     * 
-     * Should be called by the application after a period of successful
-     * operation to reset the consecutive reboot counter. This prevents
-     * the system from entering safety monitor mode due to old faults.
-     * 
-     * Typical usage: Call this function after the system has been
-     * running successfully for several minutes without faults.
-     */
-    void resetRebootCounter();
 
     /**
      * @brief Report a fault to the safety system
