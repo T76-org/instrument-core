@@ -30,7 +30,7 @@
 // Pico SDK includes
 #include <pico/stdlib.h>
 #include <pico/time.h>
-#include <hardware/sync.h>
+#include <pico/critical_section.h>
 #include <hardware/watchdog.h>
 #include <hardware/irq.h>
 
@@ -75,7 +75,6 @@ namespace T76::Sys::Safety {
         uint32_t stackUsed;                     ///< Used stack space in bytes
         uint32_t stackRemaining;                ///< Remaining stack space in bytes
         uint32_t stackHighWaterMark;            ///< Minimum stack remaining since task start
-        uint8_t stackUsagePercent;              ///< Stack usage as percentage (0-100)
         bool isMainStack;                       ///< True if using main stack (MSP), false for process stack (PSP)
         bool isValidStackInfo;                  ///< True if stack information is valid
     };
@@ -166,12 +165,13 @@ namespace T76::Sys::Safety {
     extern bool gSafetyInitialized;
 
     /**
-     * @brief Inter-core synchronization spinlock
+     * @brief Inter-core synchronization critical section
      * 
      * Provides thread-safe access to shared memory between both cores.
-     * Uses Pico SDK spinlock mechanism for reliable multi-core synchronization.
+     * Uses Pico SDK critical section mechanism for reliable multi-core synchronization
+     * with automatic interrupt handling.
      */
-    extern spin_lock_t* gSafetySpinlock;
+    extern critical_section_t gSafetyCriticalSection;
 
     /**
      * @brief Static buffer for file names to avoid stack allocation
@@ -226,7 +226,7 @@ namespace T76::Sys::Safety {
      * 
      * @note Uses safe string copying to prevent buffer overflows
      * @note Calls helper functions to gather system state information
-     * @note Thread-safe through caller's spinlock management
+     * @note Thread-safe through caller's critical section management
      */
     void populateFaultInfo(FaultType type,
                                   const char* description,

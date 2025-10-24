@@ -50,13 +50,14 @@ namespace T76::Sys::Safety {
     bool gSafetyInitialized = false;
 
     /**
-     * @brief Inter-core synchronization spinlock for shared memory access
+     * @brief Inter-core synchronization critical section for shared memory access
      * 
      * Provides thread-safe access to shared memory structures between both
      * cores of the RP2350. Initialized during safetyInit() using Pico SDK
-     * spinlock mechanism for reliable multi-core synchronization.
+     * critical section mechanism for reliable multi-core synchronization
+     * with automatic interrupt handling.
      */
-    spin_lock_t* gSafetySpinlock = nullptr;
+    critical_section_t gSafetyCriticalSection;
 
     /**
      * @brief Static buffer for file names during fault handling

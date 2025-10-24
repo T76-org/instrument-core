@@ -31,7 +31,6 @@
 
 #include <pico/stdlib.h>
 #include <pico/time.h>
-#include <hardware/sync/spin_lock.h>
 #include <hardware/watchdog.h>
 #include <hardware/irq.h>
 
@@ -155,12 +154,6 @@ namespace T76::Sys::Safety {
                         gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = 256; // Conservative estimate
                     }
                     
-                    // Calculate usage percentage
-                    if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize > 0) {
-                        gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = (gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed * 100) / gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
-                        if (gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent > 100) gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100;
-                    }
-                    
                     gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = true;
                 }
             } else {
@@ -168,7 +161,6 @@ namespace T76::Sys::Safety {
                 gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
                 gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
                 gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in interrupt context
-                gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100; // Conservative estimate
                 gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy
             }
         } else {
@@ -177,7 +169,6 @@ namespace T76::Sys::Safety {
             gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize = 0x20042000 - currentSP; // Estimated size
             gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsed = gSharedFaultSystem->lastFaultInfo.stackInfo.stackSize;
             gSharedFaultSystem->lastFaultInfo.stackInfo.stackRemaining = 0; // Unknown in bare metal
-            gSharedFaultSystem->lastFaultInfo.stackInfo.stackUsagePercent = 100; // Conservative estimate
             gSharedFaultSystem->lastFaultInfo.stackInfo.isValidStackInfo = false; // Limited accuracy on Core 1
         }
     }
@@ -299,7 +290,7 @@ namespace T76::Sys::Safety {
      * 
      * @note Uses safe string copying to prevent buffer overflows
      * @note Calls helper functions to gather system state information
-     * @note Thread-safe through caller's spinlock management
+     * @note Thread-safe through caller's critical section management
      */
     void populateFaultInfo(FaultType type,
                                         const char* description,

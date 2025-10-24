@@ -11,7 +11,7 @@
  * 
  * The registry is self-initializing and works from the very beginning of the
  * application's lifetime, even before C++ runtime initialization is complete.
- * It uses its own dedicated spinlock for thread synchronization.
+ * It uses its own dedicated critical section for thread synchronization.
  * 
  * Key design principles:
  * - Self-initializing memory structures
@@ -27,6 +27,7 @@
 
 // Pico SDK includes
 #include <pico/stdlib.h>
+#include <pico/critical_section.h>
 
 #include "safety.hpp"
 #include "safety_private.hpp"
@@ -49,9 +50,8 @@ namespace T76::Sys::Safety {
     // Global component registry (normal memory, not persistent)
     static ComponentRegistry gComponentRegistry = {0};
 
-    // Dedicated spinlock for component registry synchronization
-    static spin_lock_t* gComponentRegistrySpinlock = nullptr;
-    static bool gSpinlockInitialized = false;
+    // Dedicated critical section for component registry synchronization
+    static critical_section_t gComponentRegistryCriticalSection;
 
     /**
      * @brief Initialize the component registry if not already initialized
@@ -61,16 +61,15 @@ namespace T76::Sys::Safety {
      * Thread-safe through dedicated component registry spinlock protection.
      */
     static void ensureRegistryInitialized() {
-        // Initialize the spinlock if not already done
-        if (!gSpinlockInitialized) {
+        // Initialize the critical section if not already done
+        if (!critical_section_is_initialized(&gComponentRegistryCriticalSection)) {
             // This is not thread-safe, but it's called during early initialization
             // before multi-core operation begins
-            gComponentRegistrySpinlock = spin_lock_init(spin_lock_claim_unused(true));
-            gSpinlockInitialized = true;
+            critical_section_init(&gComponentRegistryCriticalSection);
         }
         
-        // Use dedicated component registry spinlock for synchronization
-        uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
+        // Use dedicated component registry critical section for synchronization
+        critical_section_enter_blocking(&gComponentRegistryCriticalSection);
         
         if (!gComponentRegistry.initialized) {
             // Clear the entire structure
@@ -82,7 +81,7 @@ namespace T76::Sys::Safety {
             gComponentRegistry.initialized = true;
         }
         
-        spin_unlock(gComponentRegistrySpinlock, interrupts);
+        critical_section_exit(&gComponentRegistryCriticalSection);
     }
 
     /**
@@ -105,7 +104,7 @@ namespace T76::Sys::Safety {
         ensureRegistryInitialized();
 
         // Thread-safe registration
-        uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
+        critical_section_enter_blocking(&gComponentRegistryCriticalSection);
         
         bool success = false;
         
@@ -130,7 +129,7 @@ namespace T76::Sys::Safety {
             }
         }
         
-        spin_unlock(gComponentRegistrySpinlock, interrupts);
+        critical_section_exit(&gComponentRegistryCriticalSection);
         return success;
     }
 
@@ -143,7 +142,7 @@ namespace T76::Sys::Safety {
         ensureRegistryInitialized();
 
         // Thread-safe unregistration
-        uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
+        critical_section_enter_blocking(&gComponentRegistryCriticalSection);
         
         bool success = false;
         
@@ -165,7 +164,7 @@ namespace T76::Sys::Safety {
             }
         }
         
-        spin_unlock(gComponentRegistrySpinlock, interrupts);
+        critical_section_exit(&gComponentRegistryCriticalSection);
         return success;
     }
 
@@ -179,7 +178,7 @@ namespace T76::Sys::Safety {
         }
 
         // Thread-safe activation
-        uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
+        critical_section_enter_blocking(&gComponentRegistryCriticalSection);
         
         if (isRegistryValid()) {
             // Create a local copy of components to avoid holding the lock during activation
@@ -190,7 +189,7 @@ namespace T76::Sys::Safety {
                 localComponents[i] = gComponentRegistry.components[i];
             }
             
-            spin_unlock(gComponentRegistrySpinlock, interrupts);
+            critical_section_exit(&gComponentRegistryCriticalSection);
             
             // Call activate() on each component (outside the critical section)
             for (uint32_t i = 0; i < localCount; i++) {
@@ -208,7 +207,7 @@ namespace T76::Sys::Safety {
                 }
             }
         } else {
-            spin_unlock(gComponentRegistrySpinlock, interrupts);
+            critical_section_exit(&gComponentRegistryCriticalSection);
         }
         
         return true;
@@ -219,7 +218,7 @@ namespace T76::Sys::Safety {
         ensureRegistryInitialized();
 
         // Thread-safe safing
-        uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
+        critical_section_enter_blocking(&gComponentRegistryCriticalSection);
         
         if (isRegistryValid()) {
             // Create a local copy of components to avoid holding the lock during safing
@@ -230,7 +229,7 @@ namespace T76::Sys::Safety {
                 localComponents[i] = gComponentRegistry.components[i];
             }
             
-            spin_unlock(gComponentRegistrySpinlock, interrupts);
+            critical_section_exit(&gComponentRegistryCriticalSection);
             
             // Call makeSafe() on each component (outside the critical section)
             for (uint32_t i = 0; i < localCount; i++) {
@@ -240,7 +239,7 @@ namespace T76::Sys::Safety {
                 }
             }
         } else {
-            spin_unlock(gComponentRegistrySpinlock, interrupts);
+            critical_section_exit(&gComponentRegistryCriticalSection);
         }
     }
 

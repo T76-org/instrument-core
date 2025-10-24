@@ -17,7 +17,7 @@
 // Pico SDK includes
 #include <pico/stdlib.h>
 #include <pico/time.h>
-#include <hardware/sync/spin_lock.h>
+#include <pico/critical_section.h>
 #include <hardware/watchdog.h>
 #include <hardware/irq.h>
 
@@ -49,12 +49,12 @@ namespace T76::Sys::Safety {
      * 
      * @note Uses busy-wait loops to avoid additional function call overhead
      * @note Watchdog reset is more reliable than software reset mechanisms
-     * @note Thread-safe through spinlock protection of shared state
+     * @note Thread-safe through critical section protection of shared state
      */
     static inline void handleFault() {
         // Mark system as being in fault state
-        if (gSharedFaultSystem && gSafetySpinlock) {
-            uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
+        if (gSharedFaultSystem && gSafetyCriticalSection.spin_lock) {
+            critical_section_enter_blocking(&gSafetyCriticalSection);
             gSharedFaultSystem->safetySystemReset = true; // Mark as safety system reset
             
             // Store current fault in fault history
@@ -65,7 +65,7 @@ namespace T76::Sys::Safety {
                 gSharedFaultSystem->rebootCount++;
             }
             
-            spin_unlock(gSafetySpinlock, savedIrq);
+            critical_section_exit(&gSafetyCriticalSection);
         }
 
         // Perform immediate system reset using watchdog
@@ -86,9 +86,9 @@ namespace T76::Sys::Safety {
         // Initialize shared memory on first call from either core
         gSharedFaultSystem = reinterpret_cast<SharedFaultSystem*>(gSharedMemory);
         
-        // Initialize Pico SDK spinlock (safe to call multiple times)
-        if (gSafetySpinlock == nullptr) {
-            gSafetySpinlock = spin_lock_init(spin_lock_claim_unused(true));
+        // Initialize Pico SDK critical section (safe to call multiple times)
+        if (!critical_section_is_initialized(&gSafetyCriticalSection)) {
+            critical_section_init(&gSafetyCriticalSection);
         }
 
         // Store watchdog reboot status for later processing
@@ -112,12 +112,35 @@ namespace T76::Sys::Safety {
         if (wasWatchdogReboot && !isFirstBoot) {
             // Check if last reboot was caused by watchdog timeout (not safety system reset)
             if (!gSharedFaultSystem->safetySystemReset) {
-                // Manually add to fault history (like reportFault does but without immediate reset)
+                // This was a genuine watchdog timeout - populate fault info for it
+                critical_section_enter_blocking(&gSafetyCriticalSection);
+                
+                // Create descriptive fault message including which core failed
+                static char watchdogFaultDesc[T76_SAFETY_MAX_FAULT_DESC_LEN];
+                uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
+                if (failureCore == 0) {
+                    snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
+                            "Hardware watchdog timeout: Core 0 (FreeRTOS) stopped responding");
+                } else if (failureCore == 1) {
+                    snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
+                            "Hardware watchdog timeout: Core 1 (bare-metal) stopped responding");
+                } else {
+                    snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
+                            "Hardware watchdog timeout: likely core 0 failure");
+                }
+                
+                populateFaultInfo(FaultType::WATCHDOG_TIMEOUT, 
+                                watchdogFaultDesc,
+                                __FILE__, __LINE__, __func__);
+                
+                // Add to fault history (like reportFault does but without immediate reset)
                 if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
                     uint32_t index = gSharedFaultSystem->rebootCount;
                     gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
                     gSharedFaultSystem->rebootCount++;
                 }
+                
+                critical_section_exit(&gSafetyCriticalSection);
             }
         }
 
@@ -173,7 +196,7 @@ namespace T76::Sys::Safety {
      * @param function Function name where fault occurred
      * 
      * @note Never returns - always results in system reset
-     * @note Thread-safe through spinlock protection in populateFaultInfo
+     * @note Thread-safe through critical section protection in populateFaultInfo
      * @note Falls back to immediate watchdog reset if shared memory unavailable
      */
     void reportFault(FaultType type, 
@@ -209,20 +232,20 @@ namespace T76::Sys::Safety {
      * The function:
      * - Zeros out the lastFaultInfo structure in shared memory
      * - Preserves other safety system state (reboot counter, etc.)
-     * - Uses spinlock protection for thread safety
+     * - Uses critical section protection for thread safety
      * 
-     * @note Thread-safe through spinlock protection
+     * @note Thread-safe through critical section protection
      * @note Does not affect reboot counter or fault history array
      * @note Safe to call even if safety system is not initialized
      */
     void clearFaultHistory() {
-        if (!gSharedFaultSystem || !gSafetySpinlock) {
+        if (!gSharedFaultSystem || !gSafetyCriticalSection.spin_lock) {
             return;
         }
 
-        uint32_t savedIrq = spin_lock_blocking(gSafetySpinlock);
+        critical_section_enter_blocking(&gSafetyCriticalSection);
         memset(&gSharedFaultSystem->lastFaultInfo, 0, sizeof(FaultInfo));
-        spin_unlock(gSafetySpinlock, savedIrq);
+        critical_section_exit(&gSafetyCriticalSection);
     }
 
 } // namespace T76::Sys::Safety

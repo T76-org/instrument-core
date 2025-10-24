@@ -148,11 +148,9 @@ namespace T76::Sys {
                 printf("Stack Used: %lu bytes\n", faultInfo.stackInfo.stackUsed);
                 printf("Stack Remaining: %lu bytes\n", faultInfo.stackInfo.stackRemaining);
                 printf("Stack High Water Mark: %lu bytes\n", faultInfo.stackInfo.stackHighWaterMark);
-                printf("Stack Usage: %u%%\n", faultInfo.stackInfo.stackUsagePercent);
                 printf("Stack Type: %s\n", faultInfo.stackInfo.isMainStack ? "Main (MSP)" : "Process (PSP)");
             } else {
                 printf("Stack Type: %s\n", faultInfo.stackInfo.isMainStack ? "Main (MSP)" : "Process (PSP)");
-                printf("Stack Usage: %u%% (estimated)\n", faultInfo.stackInfo.stackUsagePercent);
                 printf("Note: Limited stack info (interrupt/Core1 context)\n");
             }
 
