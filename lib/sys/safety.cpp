@@ -151,8 +151,19 @@ namespace T76::Sys::Safety {
 
         gSafetyInitialized = true;
 
-        if (!activateAllComponents()) {
-            reportFault(FaultType::ACTIVATION_FAILED, "Activation failed", __FILE__, __LINE__, __func__);
+        // Try to activate all registered components
+        const char* failingComponentName = nullptr;
+        if (!activateAllComponents(&failingComponentName)) {
+            // Build a descriptive fault message including the component name
+            if (failingComponentName != nullptr) {
+                // Use static buffer to avoid stack allocation during fault handling
+                static char faultDescription[T76_SAFETY_MAX_FAULT_DESC_LEN];
+                snprintf(faultDescription, sizeof(faultDescription), 
+                        "Component activation failed: %s", failingComponentName);
+                reportFault(FaultType::ACTIVATION_FAILED, faultDescription, __FILE__, __LINE__, __func__);
+            } else {
+                reportFault(FaultType::ACTIVATION_FAILED, "Component activation failed (unknown component)", __FILE__, __LINE__, __func__);
+            }
         }
     }
 

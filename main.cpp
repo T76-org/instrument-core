@@ -36,6 +36,10 @@ public:
     void makeSafe() {
         gpio_put(3, false);
     }
+
+    const char *getComponentName() const {
+        return "Component A";
+    }
 };
 
 A aa;

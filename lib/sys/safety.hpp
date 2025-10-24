@@ -112,6 +112,17 @@ namespace T76::Sys::Safety {
         virtual bool activate() = 0;
 
         /**
+         * @brief Get the component name for identification
+         * 
+         * This method returns a human-readable name for the component that can be
+         * used in error reporting and debugging. The returned string should be a
+         * static string literal or have a lifetime at least as long as the component.
+         * 
+         * @return Null-terminated string with the component name
+         */
+        virtual const char* getComponentName() const = 0;
+
+        /**
          * @brief Put the component into a safe state
          * 
          * This method is called to put the component into a safe state. It must be
@@ -198,12 +209,15 @@ namespace T76::Sys::Safety {
      * Calls the activate() method on all registered SafeableComponent instances.
      * If any component fails to activate, all components are made safe.
      * 
+     * @param failingComponentName Optional output parameter to receive the name of the
+     *                            component that failed activation (if any). Can be nullptr
+     *                            if caller doesn't need this information.
      * @return True if all components were successfully activated, false otherwise.
      * 
      * @note Thread-safe for multi-core operation
      * @note If any activation fails, this function automatically calls makeAllComponentsSafe()
      */
-    bool activateAllComponents();
+    bool activateAllComponents(const char** failingComponentName = nullptr);
 
     /**
      * @brief Make all registered components safe

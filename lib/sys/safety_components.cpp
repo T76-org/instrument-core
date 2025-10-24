@@ -169,9 +169,14 @@ namespace T76::Sys::Safety {
         return success;
     }
 
-    bool activateAllComponents() {
+    bool activateAllComponents(const char** failingComponentName) {
         // Ensure registry is initialized
         ensureRegistryInitialized();
+
+        // Clear the output parameter initially
+        if (failingComponentName != nullptr) {
+            *failingComponentName = nullptr;
+        }
 
         // Thread-safe activation
         uint32_t interrupts = spin_lock_blocking(gComponentRegistrySpinlock);
@@ -191,7 +196,12 @@ namespace T76::Sys::Safety {
             for (uint32_t i = 0; i < localCount; i++) {
                 if (localComponents[i] != nullptr) {
                     if (!localComponents[i]->activate()) {
-                        // If any component fails to activate, make all components safe and return false
+                        // If any component fails to activate, capture the component name
+                        if (failingComponentName != nullptr) {
+                            *failingComponentName = localComponents[i]->getComponentName();
+                        }
+                        
+                        // Make all components safe and return false
                         makeAllComponentsSafe();
                         return false;
                     }
