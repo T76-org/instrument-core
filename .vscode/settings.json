@@ -42,6 +42,8 @@
     "files.associations": {
         "freertos.h": "c",
         "safety.hpp": "c",
-        "functional": "cpp"
+        "functional": "cpp",
+        "text_encoding": "cpp",
+        "typeinfo": "cpp"
     }
 }

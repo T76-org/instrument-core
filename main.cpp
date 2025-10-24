@@ -19,6 +19,27 @@
 #include <lib/sys/memory.hpp>
 #include <lib/sys/safety.hpp>
 
+class A : public T76::Sys::Safety::SafeableComponent {
+public:
+    A() {
+        T76::Sys::Safety::registerComponent(this);
+        gpio_set_function(3, GPIO_FUNC_SIO);
+        gpio_init(3);
+        gpio_set_dir(3, GPIO_OUT);
+    }
+
+    bool activate() {
+        gpio_put(3, true);
+        return false;
+    }
+
+    void makeSafe() {
+        gpio_put(3, false);
+    }
+};
+
+A aa;
+
 /**
  * @brief Task to handle TinyUSB events. This will run on core 0 because it is
  *        executed in a FreeRTOS task.

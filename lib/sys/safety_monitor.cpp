@@ -93,6 +93,7 @@ namespace T76::Sys {
                 case T76::Sys::Safety::FaultType::INVALID_STATE: return "INVALID_STATE";
                 case T76::Sys::Safety::FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
                 case T76::Sys::Safety::FaultType::WATCHDOG_TIMEOUT: return "WATCHDOG_TIMEOUT";
+                case T76::Sys::Safety::FaultType::ACTIVATION_FAILED: return "ACTIVATION_FAILED";
                 default: return "INVALID";
             }
         }

@@ -96,7 +96,7 @@ namespace T76::Sys::Safety {
         
         // Initialize Pico SDK spinlock (safe to call multiple times)
         if (gSafetySpinlock == nullptr) {
-            gSafetySpinlock = spin_lock_init(PICO_SPINLOCK_ID_OS1);
+            gSafetySpinlock = spin_lock_init(spin_lock_claim_unused(true));
         }
 
         // Store watchdog reboot status for later processing
@@ -138,6 +138,8 @@ namespace T76::Sys::Safety {
 
         // Clear the safety system reset flag for next boot
         gSharedFaultSystem->safetySystemReset = false;
+
+        makeAllComponentsSafe();
         
         // Check reboot count and handle safety monitor
         if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
@@ -148,6 +150,10 @@ namespace T76::Sys::Safety {
         gSharedFaultSystem->lastBootTimestamp = to_ms_since_boot(get_absolute_time());
 
         gSafetyInitialized = true;
+
+        if (!activateAllComponents()) {
+            reportFault(FaultType::ACTIVATION_FAILED, "Activation failed", __FILE__, __LINE__, __func__);
+        }
     }
 
     /**

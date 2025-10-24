@@ -30,7 +30,7 @@
 // Pico SDK includes
 #include <pico/stdlib.h>
 #include <pico/time.h>
-#include <hardware/sync/spin_lock.h>
+#include <hardware/sync.h>
 #include <hardware/watchdog.h>
 #include <hardware/irq.h>
 
@@ -43,6 +43,9 @@
 // Core 1 watchdog configuration
 #define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000    ///< Default watchdog timeout (5 seconds)
 
+// Component registry configuration
+#define T76_SAFETY_MAX_REGISTERED_COMPONENTS 32        ///< Maximum number of components that can be registered
+
 /**
  * @brief Magic number for fault system structure validation
  * 
@@ -50,6 +53,14 @@
  * has been properly initialized and is not corrupted.
  */
 #define FAULT_SYSTEM_MAGIC 0x54F3570
+
+/**
+ * @brief Magic number for component registry validation
+ * 
+ * This constant is used to validate that the component registry structure
+ * has been properly initialized and is not corrupted.
+ */
+#define COMPONENT_REGISTRY_MAGIC 0x53414645
 
 
 namespace T76::Sys::Safety {
@@ -83,6 +94,7 @@ namespace T76::Sys::Safety {
         INVALID_STATE,            ///< Invalid system state detected
         RESOURCE_EXHAUSTED,       ///< System resource exhaustion
         WATCHDOG_TIMEOUT,         ///< Hardware watchdog timeout (Core 1 hang)
+        ACTIVATION_FAILED,        ///< Activation failed at startup
     };
 
     /**

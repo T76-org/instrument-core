@@ -83,6 +83,46 @@
 namespace T76::Sys::Safety {
 
     /**
+     * @brief Abstract base class for components that can participate in safety operations
+     * 
+     * Components that inherit from this class can register themselves with the safety
+     * system and participate in activation and safing operations. This provides a
+     * standardized interface for managing component lifecycle and safety states.
+     * 
+     * Implementations must provide:
+     * - activate(): Called during system initialization to activate the component
+     * - makeSafe(): Called to put the component into a safe state (must be idempotent)
+     */
+    class SafeableComponent {
+    public:
+        /**
+         * @brief Virtual destructor for proper cleanup
+         */
+        virtual ~SafeableComponent() = default;
+
+        /**
+         * @brief Activate the component
+         * 
+         * This method is called during system initialization to activate the component.
+         * The component should perform any necessary initialization and return true
+         * if activation was successful.
+         * 
+         * @return true if component was activated successfully, false otherwise
+         */
+        virtual bool activate() = 0;
+
+        /**
+         * @brief Put the component into a safe state
+         * 
+         * This method is called to put the component into a safe state. It must be
+         * idempotent (safe to call multiple times) and should not throw exceptions.
+         * The component should disable any potentially dangerous operations and
+         * enter a known safe state.
+         */
+        virtual void makeSafe() = 0;
+    };
+
+    /**
      * @brief Initialize the safety system
      * 
      * This function must be called early in system initialization, before
@@ -120,5 +160,62 @@ namespace T76::Sys::Safety {
      * @note Only effective if initCore1Watchdog() has been called first
      */
     void feedWatchdog();
+
+    /**
+     * @brief Register a component with the safety system
+     * 
+     * Registers a SafeableComponent instance with the safety system so it can
+     * participate in activation and safing operations. The component must remain
+     * valid for as long as it is registered.
+     * 
+     * @param component Pointer to the component to register (must not be null)
+     * @return true if component was successfully registered, false otherwise
+     * 
+     * @note Thread-safe for multi-core operation
+     * @note Will not register the same component twice
+     * @note Registry has a maximum capacity limit
+     */
+    bool registerComponent(SafeableComponent* component);
+
+    /**
+     * @brief Unregister a component from the safety system
+     * 
+     * Removes a previously registered SafeableComponent from the safety system.
+     * After unregistration, the component will not participate in activation
+     * or safing operations.
+     * 
+     * @param component Pointer to the component to unregister (must not be null)
+     * @return true if component was successfully unregistered, false if not found
+     * 
+     * @note Thread-safe for multi-core operation
+     * @note Safe to call even if component was never registered
+     */
+    bool unregisterComponent(SafeableComponent* component);
+
+    /**
+     * @brief Activate all registered components
+     * 
+     * Calls the activate() method on all registered SafeableComponent instances.
+     * If any component fails to activate, all components are made safe.
+     * 
+     * @return True if all components were successfully activated, false otherwise.
+     * 
+     * @note Thread-safe for multi-core operation
+     * @note If any activation fails, this function automatically calls makeAllComponentsSafe()
+     */
+    bool activateAllComponents();
+
+    /**
+     * @brief Make all registered components safe
+     * 
+     * Calls the makeSafe() method on all registered SafeableComponent instances.
+     * This is typically called during system shutdown or fault recovery to ensure
+     * all components enter a safe state.
+     * 
+     * @note Thread-safe for multi-core operation
+     * @note Components are safed outside of critical sections to avoid deadlocks
+     * @note Continues safing other components even if some fail
+     */
+    void makeAllComponentsSafe();
 
 } // namespace T76::Sys::Safety
