@@ -223,3 +223,37 @@ namespace T76::Sys::Safety {
     void makeAllComponentsSafe();
 
 } // namespace T76::Sys::Safety
+
+// ========== SAFETY MACROS ==========
+
+/**
+ * @brief Panic macro that triggers a fault if condition is false.
+ * 
+ * Evaluates the given expression and, if it evaluates to false (or 0),
+ * triggers a fault with the provided reason message. This macro is useful
+ * for runtime assertions and precondition checks throughout your code.
+ * 
+ * @param expr Boolean expression to evaluate
+ * @param reason Human-readable string describing the expected condition
+ * 
+ * Example usage:
+ * @code
+ * T76_PANIC_IF_NOT(ptr != nullptr, "Pointer must not be null");
+ * T76_PANIC_IF_NOT(init_successful, "Initialization failed");
+ * @endcode
+ * 
+ * @note This macro never returns if the condition fails - triggers system reset
+ * @note Captures file, line, and function information automatically
+ */
+#define T76_PANIC_IF_NOT(expr, reason) \
+    do { \
+        if (!(expr)) { \
+            T76::Sys::Safety::reportFault( \
+                T76::Sys::Safety::FaultType::INVALID_STATE, \
+                reason, \
+                __FILE__, \
+                __LINE__, \
+                __FUNCTION__ \
+            ); \
+        } \
+    } while(0)

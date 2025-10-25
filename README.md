@@ -1,5 +1,7 @@
 # T76 Instrument Core
 
+**Work in progress.** This project is under active development and incomplete as of October 2025. Follow the repository for updates.
+
 This project is a template for building “prosumer”-grade firmware for measurement instruments based on RP2350-based boards, such as the Raspberry Pi Pico 2.
 
 It provides these features:
@@ -53,3 +55,82 @@ However, since FreeRTOS is only running on core 0, special care must be taken wh
 The memory management system can be configured by defining the `T76_USE_GLOBAL_LOCKS` macro in the project's configuration files or build system. Set it to `0` to disable global locks (single-core mode) or `1` to enable them (multi-core mode).
 
 At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::memoryInit()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
+
+# Safety features
+
+The T76 Instrument Core includes a robust safety system designed to handle faults and ensure the instrument operates reliably. The safety system provides mechanisms for fault detection, logging, and recovery, allowing the instrument to enter a safe mode in the event of critical errors.
+
+### Fault handling
+
+The safety system includes functions for triggering faults, logging fault information, and managing system reboots. When a fault is triggered, the system captures relevant information, such as the fault type, location, and context, and stores it in a shared fault structure.
+
+The system also implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. If the number of consecutive reboots exceeds a predefined threshold, the system enters a safety monitor mode, where it halts normal operation and waits for user intervention.
+
+Most system-level faults, such as memory allocation failures, panics, and unhandled exceptions, are automatically captured and processed by the safety system. Developers can also trigger custom faults using the provided fault handling functions.
+
+### Watchdog support
+
+The safety system includes support for a dual-core watchdog mechanism. A hardware watchdog timer is configured to monitor the system's health and ensure that it remains responsive. If the watchdog timer expires, indicating that the system is unresponsive, the watchdog triggers a system reset.
+
+A low-priority FreeRTOS task is created on core 0 to periodically “feed” the watchdog timer, ensuring that it is reset as long as the system is functioning correctly. This task runs when the system is idle, minimizing its impact on overall performance.
+
+Should any task on core 0 become unresponsive, the watchdog will not be fed, leading to a system reset and allowing the safety system to take appropriate action.
+
+On core 1, bare-metal critical tasks must also ensure that they remain responsive and do not block indefinitely by periodically sending a signal to the watchdog task running on core 0. This ensures that the watchdog mechanism effectively monitors the entire system, including both cores, with core 0 being the primary monitor so that as much of core 1's capacity is available for critical tasks.
+
+### Safing
+
+The safety system provides a safing mechanism that puts the instrument into a safe state when a critical fault occurs. In safe mode, the instrument disables non-essential functions and enters a low-power state, allowing for safe recovery and troubleshooting.
+
+## Configuration
+
+The safety system can be configured through a set of macros, which are defined in the `lib/sys/safety_private.hpp` file. These macros allow developers to customize the behavior of the safety system, including fault handling, reboot limits, and watchdog settings.
+
+## Including and using the safety system
+
+To include the safety system in your project, you simply need to include the main safety header file, `safety.hpp`, in your source files.
+
+At launch, initialize the safety system by calling the `T76::Sys::Safety::safetyInit()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
+
+On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::signalWatchdog()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+
+## Triggering faults
+
+While the system catches system-level faults automatically, developers can also trigger custom faults using the `T76::Sys::Safety::reportFault()` function. This function allows you to specify the fault type, location, and additional context information.
+
+When a fault is reported, the safety system captures the relevant information and takes appropriate action based on the fault type and system state before safing the system and rebooting.
+
+A convenient macro, `T76_PANIC_IF_NOT(expr, reason)`, is provided to simplify fault triggering based on conditions. This macro evaluates the given expression `expr`, and if it evaluates to false, it triggers a panic fault with the specified `reason`. This allows for concise and readable code when checking for critical conditions.
+
+## Fault recovery and reboot limiting
+
+The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` macro in the `safety_private.hpp` file.
+
+After the appropriate number of reboots, the system implements a lockout mechanism that prevents further restarts until the user intervenes by cycling power or issuing a hardware reset. This ensures that the instrument does not enter an endless reboot cycle, allowing for safe recovery and troubleshooting.
+
+After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` macro in the `safety_private.hpp` file. If set to `0`, the auto-reset feature is disabled.
+
+## System safing and startup sequence
+
+When a critical fault occurs, a reboot is not sufficient to ensure safety, since external devices may still be powered and operating in an unsafe manner. In addition, it is important to bring up the system in a known safe state before attempting normal operation; after all, the failure of a single component should not compromise the safety of the entire instrument.
+
+To address these concerns, the safety system implements a two-shot startup process:
+
+- Upon boot, the system first enters safe mode by asking all components to enter their safe states. This ensures that any external devices are powered down or put into a safe configuration before normal operation begins.
+
+- Next, the system determines whether the previous shutdown was due to a fault. If so, it remains in safe mode, allowing the user to investigate and address the issue before proceeding.
+
+- Otherwise, it proceeds to activate all components and enter normal operation mode.
+
+To participate in this safing mechanisms, components need to implement the `T76::Sys::Safety::SafeableComponent` interface, which defines a `makeSafe()` method, which is called during the safing process, and an `activate()` method, which is called to bring the component back to normal operation and returns a boolean indicating success or failure.
+
+Components should register themselves with the safety system using the `T76::Sys::Safety::registerSafeableComponent()` function.
+
+## Dual-core watchdog initialization
+
+If enabled, the watchdog system must be initialized at startup by calling the `T76::Sys::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
+
+On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::signalWatchdog()` function to ensure that the watchdog timer is reset and the system remains responsive.
+
+Note that the watchdog system requires both FreeRTOS and the main loop on core 1 to be running in order to function. If you require a lengthy setup process on either core that must block both cores at startup, consider initializing the watchdog system after the setup is complete; otherwise, the watchdog may trigger a reset during the setup phase. (This is also the reason why the watchdog initialization is not included in the main safety initialization function.)
+
