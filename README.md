@@ -102,6 +102,27 @@ When a fault is reported, the safety system captures the relevant information an
 
 A convenient macro, `T76_PANIC_IF_NOT(expr, reason)`, is provided to simplify fault triggering based on conditions. This macro evaluates the given expression `expr`, and if it evaluates to false, it triggers a panic fault with the specified `reason`. This allows for concise and readable code when checking for critical conditions.
 
+### Enhanced abort() function
+
+The safety system provides an enhanced `abort()` function that captures detailed location information when called. Unlike the standard C library `abort()` function, which cannot capture caller information, the safety system's version automatically records the file, line number, and function name where `abort()` was called.
+
+To use this enhanced functionality, you must include `safety.hpp` in your source files **after** including any standard library headers that declare `abort()` (such as `<cstdlib>` or `<stdlib.h>`). The correct include order is:
+
+```cpp
+#include <cstdlib>      // Include system headers first
+#include "safety.hpp"   // Then include safety header
+
+void my_function() {
+    if (critical_error) {
+        abort();  // Automatically captures file, line, and function
+    }
+}
+```
+
+When `abort()` is called, the safety system will log the fault with complete diagnostic information before triggering a system reset. This information is preserved in persistent memory and can be retrieved after reboot for debugging purposes.
+
+**Note:** If you call `abort()` without including `safety.hpp`, it will use the standard library version and will not capture location information, falling back to a hardfault. The system will still enter safe mode, but without the detailed diagnostics.
+
 ## Fault recovery and reboot limiting
 
 The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` macro in the `safety_private.hpp` file.
