@@ -99,7 +99,7 @@ extern "C" {
 
 /* Hook function related definitions. */
 #define configCHECK_FOR_STACK_OVERFLOW          2
-#define configUSE_MALLOC_FAILED_HOOK            0
+#define configUSE_MALLOC_FAILED_HOOK            1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
@@ -151,7 +151,8 @@ extern "C" {
 #ifdef NDEBUG           /* required by ANSI standard */
 #  define configASSERT(__e) ((void)0)
 #else
-#  define configASSERT(__e) ((__e) ? (void)0 : my_assert_func(__FILE__, __LINE__, __func__, #__e))
+void t76_assert_func(const char* file, int line, const char* func, const char* expr); // Forward declaration to avoid import loops
+#  define configASSERT(__e) ((__e) ? (void)0 : t76_assert_func(__FILE__, __LINE__, __func__, #__e))
 #endif
 
 /* Set the following definitions to 1 to include the API function, or zero

@@ -54,13 +54,13 @@ add_executable(t76-instrument-core
 
 add_compile_definitions(
     PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1 # Disable new/delete overrides so that we can provide our own.
+    NDEBUG                                   # Ensure debug assertions are enabled.
 )
 
 pico_set_program_name(t76-instrument-core "t76-instrument-core")
 pico_set_program_version(t76-instrument-core "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(t76-instrument-core 1)
 pico_enable_stdio_usb(t76-instrument-core 1)
 
 # Add the standard library to the build
@@ -80,6 +80,8 @@ target_link_libraries(t76-instrument-core
         FreeRTOS-Kernel-Heap4
         pico_cyw43_arch_none
         pico_status_led
+        pico_multicore
+        hardware_sync_spin_lock
 )
 
 pico_add_extra_outputs(t76-instrument-core)
