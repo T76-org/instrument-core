@@ -45,6 +45,31 @@ public:
 A aa;
 
 /**
+ * @brief Test function to trigger a memory management fault.
+ * 
+ * This attempts several different fault-triggering methods to ensure
+ * a fault occurs. Different methods work on different systems depending
+ * on MPU configuration and memory map.
+ */
+void triggerMemManageFault() {
+    printf("About to trigger fault...\n");
+    sleep_ms(100);  // Give printf time to flush
+    
+    // Method 1: Execute code from an invalid address (most reliable for HardFault)
+    void (*bad_function)(void) = (void(*)(void))0xFFFFFFFF;
+    bad_function();  // Jump to invalid address - should definitely fault
+    
+    // If we somehow survive that, try other methods:
+    // Method 2: Write to a high invalid address
+    volatile uint32_t* bad_ptr = (volatile uint32_t*)0xFFFFFFFF;
+    *bad_ptr = 0xDEADBEEF;
+    
+    // Method 3: NULL pointer dereference
+    volatile uint32_t* null_ptr = nullptr;
+    *null_ptr = 0xDEADBEEF;
+}
+
+/**
  * @brief Task to handle TinyUSB events. This will run on core 0 because it is
  *        executed in a FreeRTOS task.
  * 
@@ -80,6 +105,10 @@ void printTask(void *params) {
 
         // char *f = (char *)malloc(5000);
         // f[0] = 0;
+
+        if (count > 30) {
+            abort();  // Trigger HardFault for testing
+        }
         
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }

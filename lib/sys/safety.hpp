@@ -257,3 +257,35 @@ namespace T76::Sys::Safety {
             ); \
         } \
     } while(0)
+
+// ========== C STANDARD LIBRARY OVERRIDES ==========
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Internal abort implementation function (do not call directly)
+ * 
+ * This function is used by the abort() macro to capture location information.
+ * Always use the abort() macro instead of calling this directly.
+ */
+void __t76_abort_impl(const char *file, int line, const char *func);
+
+#ifdef __cplusplus
+}
+#endif
+
+/**
+ * @brief Standard C abort() function override
+ * 
+ * Overrides the standard C library abort() function to route through
+ * the safety system. This ensures that calls to abort() are properly
+ * logged and handled consistently with other system faults.
+ * 
+ * @note Always use this macro instead of calling __t76_abort_impl() directly
+ * @note Never returns - triggers system reset through safety system
+ * 
+ */
+#define abort() __t76_abort_impl(__FILE__, __LINE__, __FUNCTION__)
+

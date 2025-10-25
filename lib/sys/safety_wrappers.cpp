@@ -9,11 +9,15 @@
  * Optimized for minimal stack usage and static memory allocation.
  */
 
-#include "safety.hpp"
+// Include system headers first to avoid conflicts with abort() macro
 #include <cstring>
+#include <cstdlib>
 #include "pico/stdlib.h"
 #include "FreeRTOS.h"
 #include "task.h"
+
+// Include safety.hpp after system headers so abort() macro works correctly
+#include "safety.hpp"
 
 /**
  * @brief Static buffer for fault descriptions in wrapper functions
@@ -148,7 +152,7 @@ extern "C" {
      * @note Never returns - triggers immediate system reset
      * @note This handler must be extremely minimal to avoid further faults
      */
-    void HardFault_Handler(void) {
+    void isr_hardfault(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Hardware fault (HardFault) occurred",
@@ -173,7 +177,7 @@ extern "C" {
      * @note Never returns - triggers immediate system reset
      * @note Only occurs on Cortex-M processors with MPU enabled
      */
-    void MemManage_Handler(void) {
+    void isr_memmanage(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Memory management fault occurred",
@@ -198,7 +202,7 @@ extern "C" {
      * @note Never returns - triggers immediate system reset
      * @note Can be precise (exact instruction) or imprecise (delayed)
      */
-    void BusFault_Handler(void) {
+    void isr_busfault(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Bus fault occurred",
@@ -224,10 +228,26 @@ extern "C" {
      * @note Never returns - triggers immediate system reset
      * @note May indicate compiler or toolchain issues
      */
-    void UsageFault_Handler(void) {
+    void isr_usagefault(void) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::HARDWARE_FAULT,
             "Usage fault occurred",
+            __FILE__, __LINE__, __func__
+        );
+    }
+
+    /**
+     * @brief Secure fault handler
+     * 
+     * Handles secure faults in ARM Cortex-M processors with TrustZone-M.
+     * Secure faults occur when there are violations of security boundaries
+     * between secure and non-secure code or memory regions.
+     * 
+     */
+    void isr_securefault(void) {
+        T76::Sys::Safety::reportFault(
+            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+            "Secure fault occurred",
             __FILE__, __LINE__, __func__
         );
     }
@@ -278,28 +298,30 @@ extern "C" {
     }
 
     /**
-     * @brief Standard C abort() function override
+     * @brief Internal abort implementation with location information
      * 
-     * Replaces the standard C library abort() function to route program
-     * termination requests through the safety system. This ensures that
-     * calls to abort() are properly logged and handled consistently
-     * with other fault conditions.
+     * This is the actual abort implementation function that captures file,
+     * line, and function information. It should not be called directly -
+     * use the abort() macro instead which will automatically capture location.
      * 
-     * The abort() function is typically called when:
-     * - Fatal errors are detected in library code
-     * - Memory corruption is detected by malloc/free
-     * - Assertion failures in release builds (some configurations)
-     * - Explicit program termination requests
+     * This function routes abort() calls through the safety system to ensure
+     * proper fault logging and consistent handling. Unlike the standard abort()
+     * which just terminates execution, this implementation captures diagnostic
+     * information before triggering a safe system reset.
+     * 
+     * @param file Source file where abort was called
+     * @param line Line number where abort was called
+     * @param func Function name where abort was called
      * 
      * @note Never returns - triggers system reset through safety system
-     * @note Overrides newlib's default abort() implementation
-     * @note Includes backup infinite loop as safety measure
+     * @note Do not call directly - use abort() macro which captures location
+     * @note This function is compatible with the abort() macro override
      */
-    void abort(void) {
+    void __t76_abort_impl(const char *file, int line, const char *func) {
         T76::Sys::Safety::reportFault(
             T76::Sys::Safety::FaultType::C_ASSERT,
-            "Program called abort()",
-            __FILE__, __LINE__, __func__
+            "abort() called",
+            file, static_cast<uint32_t>(line), func
         );
         
         // Never return
@@ -309,3 +331,5 @@ extern "C" {
     }
 
 } // extern "C"
+
+
