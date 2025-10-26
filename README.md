@@ -100,7 +100,9 @@ While the system catches system-level faults automatically, developers can also 
 
 When a fault is reported, the safety system captures the relevant information and takes appropriate action based on the fault type and system state before safing the system and rebooting.
 
-A convenient macro, `T76_PANIC_IF_NOT(expr, reason)`, is provided to simplify fault triggering based on conditions. This macro evaluates the given expression `expr`, and if it evaluates to false, it triggers a panic fault with the specified `reason`. This allows for concise and readable code when checking for critical conditions.
+A convenient macro, `T76_ASSERT(expr, reason)`, is provided to simplify fault triggering based on conditions. This macro evaluates the given expression `expr`, and if it evaluates to false, it triggers a panic fault with the specified `reason`. This allows for concise and readable code when checking for critical conditions.
+
+Unlike the standard C library `assert()` macro, which may be disabled in release builds, the `T76_ASSERT` macro is always active, ensuring that critical safety checks are enforced in all build configurations.
 
 ### Enhanced abort() function
 
