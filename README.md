@@ -147,6 +147,10 @@ To participate in this safing mechanisms, components need to implement the `T76:
 
 Components should register themselves with the safety system using the `T76::Sys::Safety::registerSafeableComponent()` function.
 
+Note that the system makes no guarantees about the order in which components are safed or activated. Therefore, components should be designed to handle safing and activation independently of other components. Also, the system assumes that components are statically allocated and remain in memory for the lifetime of the program. This is, generally, a good practice for safety-critical components, especially those involved in the safing process.
+
+Finally, because the system uses statically allocated memory to manage the list of registered components, there is a maximum number of components that can be registered. This limit can be configured using the `T76_SAFETY_MAX_REGISTERED_COMPONENTS` macro in the `safety_private.hpp` file.
+
 ## Dual-core watchdog initialization
 
 If enabled, the watchdog system must be initialized at startup by calling the `T76::Sys::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
