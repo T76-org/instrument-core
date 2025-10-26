@@ -224,40 +224,6 @@ namespace T76::Sys::Safety {
 
 } // namespace T76::Sys::Safety
 
-// ========== SAFETY MACROS ==========
-
-/**
- * @brief Panic macro that triggers a fault if condition is false.
- * 
- * Evaluates the given expression and, if it evaluates to false (or 0),
- * triggers a fault with the provided reason message. This macro is useful
- * for runtime assertions and precondition checks throughout your code.
- * 
- * @param expr Boolean expression to evaluate
- * @param reason Human-readable string describing the expected condition
- * 
- * Example usage:
- * @code
- * T76_PANIC_IF_NOT(ptr != nullptr, "Pointer must not be null");
- * T76_PANIC_IF_NOT(init_successful, "Initialization failed");
- * @endcode
- * 
- * @note This macro never returns if the condition fails - triggers system reset
- * @note Captures file, line, and function information automatically
- */
-#define T76_PANIC_IF_NOT(expr, reason) \
-    do { \
-        if (!(expr)) { \
-            T76::Sys::Safety::reportFault( \
-                T76::Sys::Safety::FaultType::INVALID_STATE, \
-                reason, \
-                __FILE__, \
-                __LINE__, \
-                __FUNCTION__ \
-            ); \
-        } \
-    } while(0)
-
 // ========== C STANDARD LIBRARY OVERRIDES ==========
 
 #ifdef __cplusplus
@@ -288,4 +254,28 @@ void __t76_abort_impl(const char *file, int line, const char *func);
  * 
  */
 #define abort() __t76_abort_impl(__FILE__, __LINE__, __FUNCTION__)
+
+/**
+ * @brief Assertion macro for runtime checks
+ * 
+ * Evaluates the given expression and, if it evaluates to false (or 0),
+ * triggers a fault with the provided description. This macro is useful
+ * for runtime assertions throughout your code.
+ * 
+ * @param expr Boolean expression to evaluate
+ * @param description Human-readable string describing the assertion
+ * 
+ */
+#define T76_ASSERT(expr, description) \
+    do { \
+        if (!(expr)) { \
+            T76::Sys::Safety::reportFault( \
+                T76::Sys::Safety::FaultType::C_ASSERT, \
+                description, \
+                __FILE__, \
+                __LINE__, \
+                __FUNCTION__ \
+            ); \
+        } \
+    } while(0)
 
