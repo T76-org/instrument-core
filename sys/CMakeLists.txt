@@ -27,7 +27,6 @@ target_include_directories(${LIBRARY_NAME} PRIVATE
 target_link_libraries(${LIBRARY_NAME} PUBLIC
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    hardware_sync_spin_lock
     pico_cyw43_arch_none
     pico_multicore
     pico_status_led

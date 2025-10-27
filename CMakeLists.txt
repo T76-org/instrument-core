@@ -61,7 +61,6 @@ add_subdirectory(sys)
 
 # Add the standard library to the build
 target_link_libraries(t76-instrument-core
-        pico_stdlib
         sys
 )
 
@@ -73,12 +72,6 @@ target_include_directories(t76-instrument-core PRIVATE
 
 # Add any user requested libraries
 target_link_libraries(t76-instrument-core 
-        FreeRTOS-Kernel
-        FreeRTOS-Kernel-Heap4
-        pico_cyw43_arch_none
-        pico_status_led
-        pico_multicore
-        hardware_sync_spin_lock
 )
 
 pico_add_extra_outputs(t76-instrument-core)
