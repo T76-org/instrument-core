@@ -43,7 +43,8 @@ pico_sdk_init()
 
 # Include all library source files
 file(GLOB app_sources
-    "lib/**/*.c*"
+    "sys/**/*.c*"
+    "sys/*.c*"
 )
 
 add_executable(t76-instrument-core 
