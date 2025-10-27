@@ -41,16 +41,9 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-# Include all library source files
-file(GLOB app_sources
-    "sys/**/*.c*"
-    "sys/*.c*"
-)
-
 add_executable(t76-instrument-core 
         main.cpp
         freertos/rp2350.c
-        ${app_sources}
 )
 
 add_compile_definitions(
@@ -64,9 +57,12 @@ pico_set_program_version(t76-instrument-core "0.1")
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_usb(t76-instrument-core 1)
 
+add_subdirectory(sys)
+
 # Add the standard library to the build
 target_link_libraries(t76-instrument-core
         pico_stdlib
+        sys
 )
 
 # Add the standard include files to the build

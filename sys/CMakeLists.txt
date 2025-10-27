@@ -1,6 +1,8 @@
 # sys library CMakeLists.txt
 
-add_library(sys STATIC
+set(LIBRARY_NAME sys)
+
+add_library(${LIBRARY_NAME} STATIC
     memory.cpp
     safety.cpp
     safety_components.cpp
@@ -12,27 +14,24 @@ add_library(sys STATIC
 )
 
 # Public include directories (headers that consumers of this library need)
-target_include_directories(sys PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}
+target_include_directories(${LIBRARY_NAME} PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Private include directories (only needed for building this library)
-target_include_directories(sys PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/../freertos
+target_include_directories(${LIBRARY_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../freertos
 )
 
 # Link required libraries
-target_link_libraries(sys PUBLIC
+target_link_libraries(${LIBRARY_NAME} PUBLIC
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     hardware_sync_spin_lock
     pico_cyw43_arch_none
     pico_multicore
     pico_status_led
+    pico_stdio_usb
     pico_stdlib
-    tinyusb_device 
-    tinyusb_board    
 )
 
-# Set C++ standard if needed
-target_compile_features(sys PUBLIC cxx_std_17)
