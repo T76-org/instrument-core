@@ -16,8 +16,8 @@
 #include <pico/multicore.h>
 #include <pico/status_led.h>
 
-#include <sys/memory.hpp>
-#include <sys/safety.hpp>
+#include <t76/memory.hpp>
+#include <t76/safety.hpp>
 
 class A : public T76::Sys::Safety::SafeableComponent {
 public:

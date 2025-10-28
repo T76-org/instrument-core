@@ -3,7 +3,7 @@
  * @copyright Copyright (c) 2025 MTA, Inc.
  */
 
-#include "memory.hpp"
+#include "t76/memory.hpp"
 
 #include <cstring>
 #include <FreeRTOS.h>

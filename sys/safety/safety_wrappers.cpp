@@ -17,7 +17,7 @@
 #include "task.h"
 
 // Include safety.hpp after system headers so abort() macro works correctly
-#include "safety.hpp"
+#include "t76/safety.hpp"
 
 /**
  * @brief Static buffer for fault descriptions in wrapper functions

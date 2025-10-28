@@ -51,6 +51,8 @@ add_compile_definitions(
     NDEBUG                                   # Ensure debug assertions are enabled.
 )
 
+set(FREERTOS_CONFIG_DIR ${CMAKE_CURRENT_LIST_DIR}/freertos)
+
 pico_set_program_name(t76-instrument-core "t76-instrument-core")
 pico_set_program_version(t76-instrument-core "0.1")
 
@@ -61,17 +63,14 @@ add_subdirectory(sys)
 
 # Add the standard library to the build
 target_link_libraries(t76-instrument-core
-        sys
+        t76_ic_memory
+        t76_ic_safety
 )
 
 # Add the standard include files to the build
 target_include_directories(t76-instrument-core PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/freertos
-)
-
-# Add any user requested libraries
-target_link_libraries(t76-instrument-core 
 )
 
 pico_add_extra_outputs(t76-instrument-core)

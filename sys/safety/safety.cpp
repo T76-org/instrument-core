@@ -20,7 +20,7 @@
 #include <pico/critical_section.h>
 #include <hardware/watchdog.h>
 
-#include "safety.hpp"
+#include "t76/safety.hpp"
 #include "safety_monitor.hpp"
 #include "safety_private.hpp"
 

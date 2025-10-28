@@ -29,7 +29,7 @@
 #include <pico/stdlib.h>
 #include <pico/critical_section.h>
 
-#include "safety.hpp"
+#include "t76/safety.hpp"
 #include "safety_private.hpp"
 
 namespace T76::Sys::Safety {

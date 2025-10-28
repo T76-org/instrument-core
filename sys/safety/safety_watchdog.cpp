@@ -31,7 +31,7 @@
  */
 
 #include "safety_private.hpp"
-#include "safety.hpp"
+#include "t76/safety.hpp"
 
 namespace T76::Sys::Safety {
 
