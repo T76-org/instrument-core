@@ -18,13 +18,14 @@ App::App() {
 }
 
 void App::run() {
-    _init();
-
     // Initialize safety system first on Core 0
     T76::Sys::Safety::init();
     
     // Initialize memory management system
     T76::Sys::Memory::init();
+
+    // Perform application-specific initialization
+    _init();
 
     // Initialize Core 1
     multicore_reset_core1();

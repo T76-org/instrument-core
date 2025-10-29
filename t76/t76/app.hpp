@@ -36,13 +36,13 @@ namespace T76::Sys {
 
         static void _core1EntryPoint() {
             if (_globalInstance) {
-                _globalInstance->_initCore1();
+                _globalInstance->_startCore1();
             }
         }
 
         virtual void _init() {};
         virtual void _initCore0() = 0;
-        virtual void _initCore1() = 0;
+        virtual void _startCore1() = 0;
     };
     
 } // namespace T76::Sys
