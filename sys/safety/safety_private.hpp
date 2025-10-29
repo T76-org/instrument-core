@@ -49,37 +49,6 @@
 // - Task priorities and stack sizes
 // - Recovery behavior thresholds
 
-// === Fault Information Limits ===
-#define T76_SAFETY_MAX_FAULT_DESC_LEN 128           ///< Maximum fault description string length (bytes)
-#define T76_SAFETY_MAX_FUNCTION_NAME_LEN 64         ///< Maximum function name string length (bytes)
-#define T76_SAFETY_MAX_FILE_NAME_LEN 128            ///< Maximum file name string length (bytes)
-
-// === Safety Recovery Configuration ===
-#define T76_SAFETY_MAX_REBOOTS 3                    ///< Maximum consecutive reboots before entering safety monitor mode
-// If > 0, fault reboot counter will automatically reset after this many seconds
-// of stable runtime without a fault-triggered reboot. 0 disables auto-reset.
-#ifndef T76_SAFETY_FAULTCOUNT_RESET_SECONDS
-#define T76_SAFETY_FAULTCOUNT_RESET_SECONDS 0
-#endif
-
-// === Dual-Core Watchdog System Configuration ===
-#define T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS 5000 ///< Hardware watchdog timeout in milliseconds (5 seconds)
-#define T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS 2000  ///< Core 1 heartbeat timeout in milliseconds (2 seconds)
-#define T76_SAFETY_WATCHDOG_TASK_PERIOD_MS 500      ///< Watchdog manager task check period in milliseconds (500ms)
-#define T76_SAFETY_WATCHDOG_TASK_PRIORITY 1         ///< FreeRTOS priority for watchdog manager task (lowest priority)
-#define T76_SAFETY_WATCHDOG_TASK_STACK_SIZE (configMINIMAL_STACK_SIZE * 2) ///< Stack size for watchdog task
-
-// === Component Registry Configuration ===
-#define T76_SAFETY_MAX_REGISTERED_COMPONENTS 32     ///< Maximum number of SafeableComponent objects that can be registered
-
-// === Safety Monitor Configuration ===
-#define T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE 256  ///< Stack size for Safety Monitor USB task (words)
-#define T76_SAFETY_MONITOR_USB_TASK_PRIORITY 1      ///< FreeRTOS priority for Safety Monitor USB task
-#define T76_SAFETY_MONITOR_REPORTER_STACK_SIZE 256  ///< Stack size for Safety Monitor fault reporter task (words)
-#define T76_SAFETY_MONITOR_REPORTER_PRIORITY 2      ///< FreeRTOS priority for Safety Monitor fault reporter task
-#define T76_SAFETY_MONITOR_REPORT_INTERVAL_MS 1000  ///< Interval between fault reports in milliseconds (1 second)
-#define T76_SAFETY_MONITOR_CYCLE_DELAY_MS 2000      ///< Delay between fault reporting cycles in milliseconds (2 seconds)
-
 // === Stack Analysis Configuration ===
 #define T76_SAFETY_ESTIMATED_MAIN_STACK_BASE 0x20042000 ///< Estimated base address for main stack (RP2350 specific)
 #define T76_SAFETY_DEFAULT_STACK_ESTIMATE 1024      ///< Conservative stack size estimate when exact size unknown (bytes)
@@ -87,8 +56,6 @@
 
 // === Core Identification Constants ===
 #define T76_SAFETY_INVALID_CORE_ID 255              ///< Value indicating unknown/invalid core ID
-#define T76_SAFETY_CORE0_ID 0                       ///< Core 0 identifier (FreeRTOS core)
-#define T76_SAFETY_CORE1_ID 1                       ///< Core 1 identifier (bare-metal core)
 
 /**
  * @brief Magic number for fault system structure validation

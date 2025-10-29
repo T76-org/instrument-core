@@ -96,9 +96,9 @@ namespace T76::Sys::Safety {
             } else {
                 // Record which core failed first (for hardware watchdog handler)
                 if (!core0Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
-                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE0_ID;  // Core 0 failed
+                    gSharedFaultSystem->watchdogFailureCore = 0;  // Core 0 failed
                 } else if (!core1Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
-                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE1_ID;  // Core 1 failed
+                    gSharedFaultSystem->watchdogFailureCore = 1;  // Core 1 failed
                 }
                 // Don't feed watchdog - let hardware watchdog reset the system
             }

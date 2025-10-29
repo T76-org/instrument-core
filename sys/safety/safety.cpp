@@ -145,10 +145,10 @@ namespace T76::Sys::Safety {
                 // Create descriptive fault message including which core failed
                 static char watchdogFaultDesc[T76_SAFETY_MAX_FAULT_DESC_LEN];
                 uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
-                if (failureCore == T76_SAFETY_CORE0_ID) {
+                if (failureCore == 0) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 0 (FreeRTOS) stopped responding");
-                } else if (failureCore == T76_SAFETY_CORE1_ID) {
+                } else if (failureCore == 0) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 1 (bare-metal) stopped responding");
                 } else {
