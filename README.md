@@ -54,7 +54,7 @@ However, since FreeRTOS is only running on core 0, special care must be taken wh
 
 ### Configuration
 
-These functions can be enabled by adding the `t76_memory` library to your project.
+These functions can be enabled by adding the `t76_memory` library to your project and then including `<t76/memory.hpp>` to your source code.
 
 The memory management system can be configured by changing the `T76_USE_GLOBAL_LOCKS` CMake variable in the project's configuration files or build system. Set it to `OFF` to disable global locks (single-core mode) or `ON` to enable them (multi-core mode).
 
@@ -88,7 +88,7 @@ The safety system provides a safing mechanism that puts the instrument into a sa
 
 ## Including and using the safety system
 
-You can add the `t76_safety` library to your project to enable the safety system.
+You can add the `t76_safety` library to your project to enable the safety system, and include `<t76/safety.hpp>` to your source code.
 
 At launch, initialize the safety system by calling the `T76::Sys::Safety::safetyInit()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
 
@@ -149,11 +149,11 @@ When `abort()` is called, the safety system will log the fault with complete dia
 
 ## Fault recovery and reboot limiting
 
-The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` macro in the `safety_private.hpp` file.
+The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` setting.
 
 After the appropriate number of reboots, the system implements a lockout mechanism that prevents further restarts until the user intervenes by cycling power or issuing a hardware reset. This ensures that the instrument does not enter an endless reboot cycle, allowing for safe recovery and troubleshooting.
 
-After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` macro in the `safety_private.hpp` file. If set to `0`, the auto-reset feature is disabled.
+After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` setting. If set to `0`, the auto-reset feature is disabled.
 
 ## System safing and startup sequence
 
