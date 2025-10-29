@@ -6,6 +6,8 @@ add_library(${LIBRARY_NAME} STATIC
     memory.cpp
 )
 
+option(T76_USE_GLOBAL_LOCKS "Enable the use of global locks to allow safe memory allocation from core 1" ON)
+
 # Public include directories (headers that consumers of this library need)
 target_include_directories(${LIBRARY_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -21,6 +23,12 @@ endif()
 target_include_directories(${LIBRARY_NAME} PRIVATE
     ${FREERTOS_CONFIG_DIR}
     freertos_kernel
+)
+
+# Convert options to defines
+
+target_compile_definitions(${LIBRARY_NAME} PRIVATE
+    $<$<BOOL:${T76_USE_GLOBAL_LOCKS}>:T76_USE_GLOBAL_LOCKS>
 )
 
 # Link required libraries
