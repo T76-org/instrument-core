@@ -18,6 +18,9 @@
 #include <pico/stdlib.h>
 #include <pico/time.h>
 #include <pico/critical_section.h>
+#include <pico/cyw43_arch.h>
+#include <pico/status_led.h>
+
 #include <hardware/watchdog.h>
 
 #include "t76/safety.hpp"
@@ -175,16 +178,16 @@ namespace T76::Sys::Safety {
         gSharedFaultSystem->safetySystemReset = false;
         gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID;  // Reset for next boot cycle
 
-    makeAllComponentsSafe();
+        makeAllComponentsSafe();
 
-    // Configure and schedule auto-reset of reboot counter if enabled by default macro
-    scheduleFaultCountResetAlarm(T76_SAFETY_FAULTCOUNT_RESET_SECONDS);
-        
         // Check reboot count and handle safety monitor
         if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
             // Too many consecutive reboots - enter safety monitor to display fault history
             SafetyMonitor::runSafetyMonitor();
         }
+        
+        // Configure and schedule auto-reset of reboot counter if enabled by default macro
+        scheduleFaultCountResetAlarm(T76_SAFETY_FAULTCOUNT_RESET_SECONDS);
         
         gSafetyInitialized = true;
 

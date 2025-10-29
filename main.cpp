@@ -13,11 +13,9 @@
 #include <tusb.h>
 
 #include <pico/cyw43_arch.h>
-#include <pico/multicore.h>
 #include <pico/status_led.h>
 
-#include <t76/memory.hpp>
-#include <t76/safety.hpp>
+#include <t76/app.hpp>
 
 class A : public T76::Sys::Safety::SafeableComponent {
 public:
@@ -106,7 +104,7 @@ void printTask(void *params) {
         // char *f = (char *)malloc(5000);
         // f[0] = 0;
 
-        if (count > 30) {
+        if (count > 10) {
             abort();  // Trigger HardFault for testing
         }
         
@@ -114,29 +112,73 @@ void printTask(void *params) {
     }
 }
 
-/**
- * @brief This task runs on core 1 and prints messages to the console. It
- *        does not use FreeRTOS and demonstrates that both cores are active.
- *        Now sends periodic heartbeats to Core 0 for dual-core watchdog protection.
- * 
- */
-void core1Task() {
-    int count = 0;
 
-    while (true) {
-        // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
-        T76::Sys::Safety::feedWatchdogFromCore1();
-        
-        // Your application code here
-        char *ptr = static_cast<char*>(malloc(320));
-        snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
-        fputs(ptr, stdout);
-        free(ptr);
-        status_led_set_state(!status_led_get_state());
-        
-        sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)
+class App : public T76::Sys::App {
+
+public:
+
+    virtual void _init() override {
     }
-}
+
+    virtual bool activate() override {
+        return true;
+    }
+
+    virtual void makeSafe() override {
+
+    }
+
+    virtual const char* getComponentName() const override {
+        return "App";
+    }
+
+protected:
+    virtual void _initCore0() override {
+        // Initialize stdio and status LED
+        stdio_init_all();
+        status_led_init();
+
+        // Create FreeRTOS tasks
+        xTaskCreate(
+            tinyUSBTask,
+            "tusb",
+            256,
+            NULL,
+            1,
+            NULL
+        );
+
+        xTaskCreate(
+            printTask,
+            "print",
+            2256,
+            NULL,
+            10,
+            NULL
+        );
+    }
+
+    virtual void _initCore1() override {
+        int count = 0;
+
+        while (true) {
+            // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
+            T76::Sys::Safety::feedWatchdogFromCore1();
+            
+            // Your application code here
+            char *ptr = static_cast<char*>(malloc(320));
+            snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
+            fputs(ptr, stdout);
+            free(ptr);
+            status_led_set_state(!status_led_get_state());
+            
+            sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)
+        }
+    }
+
+};
+
+App app;
 
 /**
  * @brief Main entry point for the application.
@@ -144,51 +186,6 @@ void core1Task() {
  * @return int Exit code (not used)
  */
 int main() {
-    // Initialize safety system first on Core 0
-    T76::Sys::Safety::init();
-    
-    // Initialize memory management system
-    T76::Sys::Memory::init();
-
-    // Initialize stdio and status LED
-    stdio_init_all();
-    status_led_init();
-
-    // Initialize dual-core watchdog system (must be done on Core 0)
-    if (!T76::Sys::Safety::watchdogInit()) {
-        // Handle watchdog initialization failure
-        T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
-                                     "Failed to initialize dual-core watchdog system",
-                                     __FILE__, __LINE__, __FUNCTION__);
-    }
-    
-    // Reset core 1 and start a new task in it.
-    // This must be done before starting the FreeRTOS scheduler.
-    multicore_reset_core1();
-    multicore_launch_core1(core1Task);
-
-    // Create FreeRTOS tasks
-    xTaskCreate(
-        tinyUSBTask,
-        "tusb",
-        256,
-        NULL,
-        1,
-        NULL
-    );
-
-    xTaskCreate(
-        printTask,
-        "print",
-        2256,
-        NULL,
-        10,
-        NULL
-    );
-
-    // Start the FreeRTOS scheduler
-    vTaskStartScheduler();
-
-    // Should never reach here
-    for(;;){}
+    app.run();
+    return 0;
 }

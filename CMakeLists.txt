@@ -63,8 +63,7 @@ add_subdirectory(t76)
 
 # Add the standard library to the build
 target_link_libraries(t76-instrument-core
-        t76_ic_memory
-        t76_ic_safety
+        t76_ic
 )
 
 # Add the standard include files to the build
