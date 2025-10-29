@@ -39,8 +39,6 @@
 
 #pragma once
 
-#define T76_USE_GLOBAL_LOCKS 1 //TODO: Make this configurable
-
 namespace T76::Sys::Memory {
     
     /**
@@ -60,6 +58,6 @@ namespace T76::Sys::Memory {
      *        - All allocations still come from the single FreeRTOS heap
      * 
      */
-    void memoryInit();
+    void init();
 
 } // namespace T76::IC::Sys::Memory

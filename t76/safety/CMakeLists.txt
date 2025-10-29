@@ -1,0 +1,64 @@
+set(LIBRARY_NAME t76_ic_safety)
+
+include(options.cmake)
+
+add_library(${LIBRARY_NAME} STATIC
+    safety.cpp
+    safety_components.cpp
+    safety_monitor.cpp
+    safety_print.cpp
+    safety_private.cpp
+    safety_watchdog.cpp
+    safety_wrappers.cpp
+)
+
+# Ensure FREERTOS_CONFIG_DIR is set
+
+if(NOT FREERTOS_CONFIG_DIR)
+    message(FATAL_ERROR "FreeRTOSConfig.h not found — please set FREERTOS_CONFIG_DIR")
+endif()
+
+# Public include directories (headers that consumers of this library need)
+target_include_directories(${LIBRARY_NAME} PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Private include directories (only needed for building this library)
+target_include_directories(${LIBRARY_NAME} PRIVATE
+    ${FREERTOS_CONFIG_DIR}
+    freertos_kernel
+)
+
+# Pass all configuration values as compile definitions
+target_compile_definitions(${LIBRARY_NAME} PUBLIC
+    T76_SAFETY_MAX_FAULT_DESC_LEN=${T76_SAFETY_MAX_FAULT_DESC_LEN}
+    T76_SAFETY_MAX_FUNCTION_NAME_LEN=${T76_SAFETY_MAX_FUNCTION_NAME_LEN}
+    T76_SAFETY_MAX_FILE_NAME_LEN=${T76_SAFETY_MAX_FILE_NAME_LEN}
+    T76_SAFETY_MAX_REBOOTS=${T76_SAFETY_MAX_REBOOTS}
+    T76_SAFETY_FAULTCOUNT_RESET_SECONDS=${T76_SAFETY_FAULTCOUNT_RESET_SECONDS}
+    T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS=${T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS}
+    T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS=${T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS}
+    T76_SAFETY_WATCHDOG_TASK_PERIOD_MS=${T76_SAFETY_WATCHDOG_TASK_PERIOD_MS}
+    T76_SAFETY_WATCHDOG_TASK_PRIORITY=${T76_SAFETY_WATCHDOG_TASK_PRIORITY}
+    T76_SAFETY_WATCHDOG_TASK_STACK_SIZE=${T76_SAFETY_WATCHDOG_TASK_STACK_SIZE}
+    T76_SAFETY_MAX_REGISTERED_COMPONENTS=${T76_SAFETY_MAX_REGISTERED_COMPONENTS}
+    T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE=${T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE}
+    T76_SAFETY_MONITOR_USB_TASK_PRIORITY=${T76_SAFETY_MONITOR_USB_TASK_PRIORITY}
+    T76_SAFETY_MONITOR_REPORTER_STACK_SIZE=${T76_SAFETY_MONITOR_REPORTER_STACK_SIZE}
+    T76_SAFETY_MONITOR_REPORTER_PRIORITY=${T76_SAFETY_MONITOR_REPORTER_PRIORITY}
+    T76_SAFETY_MONITOR_REPORT_INTERVAL_MS=${T76_SAFETY_MONITOR_REPORT_INTERVAL_MS}
+    T76_SAFETY_MONITOR_CYCLE_DELAY_MS=${T76_SAFETY_MONITOR_CYCLE_DELAY_MS}
+)
+
+
+# Link required libraries
+target_link_libraries(${LIBRARY_NAME} PUBLIC
+    FreeRTOS-Kernel
+    FreeRTOS-Kernel-Heap4
+    pico_cyw43_arch_none
+    pico_multicore
+    pico_status_led
+    pico_stdio_usb
+    pico_stdlib
+)
+

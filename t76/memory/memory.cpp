@@ -3,14 +3,14 @@
  * @copyright Copyright (c) 2025 MTA, Inc.
  */
 
-#include "memory.hpp"
+#include "t76/memory.hpp"
 
 #include <cstring>
 #include <FreeRTOS.h>
 #include <pico/sync.h>
 #include <hardware/sync.h>
 
-#if T76_USE_GLOBAL_LOCKS
+#ifdef T76_USE_GLOBAL_LOCKS
 #include <task.h>
 #include <pico/stdlib.h>
 #include <pico/multicore.h>
@@ -23,14 +23,14 @@
 static void memoryServiceTask(void* pvParameters);
 #endif
 
-void T76::Sys::Memory::memoryInit() {
-    #if T76_USE_GLOBAL_LOCKS
+void T76::Sys::Memory::init() {
+    #ifdef T76_USE_GLOBAL_LOCKS
         // Start memory service task on core 0 to handle core 1 requests
         xTaskCreate(memoryServiceTask, "MemSvc", 512, NULL, configMAX_PRIORITIES - 1, NULL);
     #endif
 }
 
-#if T76_USE_GLOBAL_LOCKS
+#ifdef T76_USE_GLOBAL_LOCKS
 /**
  * @brief FreeRTOS task that handles memory allocation requests from Core 1
  * 
@@ -110,7 +110,7 @@ static void core1_free_proxy(void* ptr) {
  * @return Pointer to allocated memory, or NULL if allocation failed
  */
 void *T76MemoryAlloc(size_t size) {
-    #if T76_USE_GLOBAL_LOCKS
+    #ifdef T76_USE_GLOBAL_LOCKS
         if (get_core_num() == 0) {
             // Core 0: Direct FreeRTOS allocation
             return pvPortMalloc(size);
@@ -136,7 +136,7 @@ void *T76MemoryAlloc(size_t size) {
 void T76MemoryFree(void* ptr) {
     if (ptr == NULL) return;
     
-    #if T76_USE_GLOBAL_LOCKS
+    #ifdef T76_USE_GLOBAL_LOCKS
         if (get_core_num() == 0) {
             // Core 0: Direct FreeRTOS free
             vPortFree(ptr);

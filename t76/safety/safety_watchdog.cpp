@@ -31,7 +31,7 @@
  */
 
 #include "safety_private.hpp"
-#include "safety.hpp"
+#include "t76/safety.hpp"
 
 namespace T76::Sys::Safety {
 
@@ -96,9 +96,9 @@ namespace T76::Sys::Safety {
             } else {
                 // Record which core failed first (for hardware watchdog handler)
                 if (!core0Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
-                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE0_ID;  // Core 0 failed
+                    gSharedFaultSystem->watchdogFailureCore = 0;  // Core 0 failed
                 } else if (!core1Healthy && gSharedFaultSystem->watchdogFailureCore == T76_SAFETY_INVALID_CORE_ID) {
-                    gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_CORE1_ID;  // Core 1 failed
+                    gSharedFaultSystem->watchdogFailureCore = 1;  // Core 1 failed
                 }
                 // Don't feed watchdog - let hardware watchdog reset the system
             }
@@ -145,7 +145,7 @@ namespace T76::Sys::Safety {
 
         // Initialize shared memory for heartbeat communication
         gCore1LastHeartbeat = 0;
-        // watchdogFailureCore is now initialized in safetyInit()
+        // watchdogFailureCore is now initialized in init()
 
         // Create the watchdog manager task with lowest priority
         // This ensures it only runs when no other tasks need CPU time,

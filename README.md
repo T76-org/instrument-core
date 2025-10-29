@@ -29,7 +29,54 @@ The IC uses FreeRTOS to manage all non-critical tasks. FreeRTOS is configured to
 
 Core 1 is reserved for bare-metal critical tasks that have strict timing and priority requirements.
 
-TODO: Expand this with more information on task management, inter-core communication, etc., especially with regards to core 1.
+## Using the template
+
+TODO: Please note that this section does not represent the current state of the project, as it is still under development.
+
+The IC includes a convenient template that makes it easy to build your own firmware that implements the T76 framework.
+
+The template is designed to be used as a git submodule within your own project repository. This allows you to easily track changes to the IC framework while keeping your own code separate.
+
+To create a new project using the IC template, follow these steps:
+
+- Create a new git repository for your project.
+- Use the Pico SDK to create a new project; make sure that you enable C++ and stdio-over-USB support (`pico_enable_stdio_usb`).
+- Add the IC repository as a git submodule within your project repository:
+
+  ```bash
+  git submodule add https://github.com/t76-org/instrument-core.git
+  ```
+
+- Modify the CMakeLists.txt file in your project to include the IC template and link against the application library:
+
+  ```cmake
+  add_subdirectory(instrument-core)
+  target_link_libraries(your_project_name PRIVATE t76_ic)
+  ```
+
+  Ensure that you replace `your_project_name` with the actual name of your project target, and that this code appears after the call to `pico_sdk_init()`
+
+- Create your own application class by inheriting from `T76::Sys::App` and implementing the required virtual methods.
+
+## Application lifecycle
+
+The `T76::Sys::App` class defines the lifecycle of the application, ensuring that initialization and main loop execution are handled correctly across both cores. You will typically want to create a derived class and statically instantiate it in your main application file. You can then execute its `run()` method from `main()` to start the application.
+
+You will need to implement the following methods in your derived application class:
+
+- `_init()`: This method is called on core 0 after the IC has been initialized but before `_initCore0()` and `_startCore1()` are called. Use this method to perform any early initialization required before core launch, such as setting up standard I/O or initializing hardware components needed by both cores.
+- `_initCore0()`: This method is called on core 0 after core 1 has been launched but before the watchdog is initialized and the FreeRTOS scheduler starts. Use this method to perform any initialization specific to core 0, such as setting up FreeRTOS tasks.
+- `_startCore1()`: This method is called on core 0 to start core 1. You should implement this method to launch core 1 code directly. Remember that, if you have enabled memory allocation on core 1, it will not be available until after the FreeRTOS scheduler has started.
+
+The safety system is not initialized until after `run()` is called; this gives you the opportunity to create any components that cannot be statically allocated within your application class's constructor. `T76::Sys::App` is also a subclass of `T76::Sys::Safety::SafeableComponent`, so you can override the `makeSafe()` and `activate()` methods to implement application-level safing and activation logic.
+
+The app template defaults to a sane configuration that includes:
+
+- Memory management _without_ support for core 1 allocations (to maximize performance)
+- Safety system with watchdog support
+- USBTMC, CDC, and SCPI support
+
+If you with to modify this configuration, details about each subsystem are provided in the relevant sections below.
 
 ## Memory management
 
@@ -52,9 +99,11 @@ However, since FreeRTOS is only running on core 0, special care must be taken wh
 
 ### Configuration
 
-The memory management system can be configured by defining the `T76_USE_GLOBAL_LOCKS` macro in the project's configuration files or build system. Set it to `0` to disable global locks (single-core mode) or `1` to enable them (multi-core mode).
+These functions can be enabled by adding the `t76_memory` library to your project and then including `<t76/memory.hpp>` to your source code.
 
-At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::memoryInit()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
+The memory management system can be configured by changing the `T76_USE_GLOBAL_LOCKS` CMake variable in the project's configuration files or build system. Set it to `OFF` to disable global locks (single-core mode) or `ON` to enable them (multi-core mode).
+
+At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::init()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
 
 # Safety features
 
@@ -82,17 +131,35 @@ On core 1, bare-metal critical tasks must also ensure that they remain responsiv
 
 The safety system provides a safing mechanism that puts the instrument into a safe state when a critical fault occurs. In safe mode, the instrument disables non-essential functions and enters a low-power state, allowing for safe recovery and troubleshooting.
 
-## Configuration
-
-The safety system can be configured through a set of macros, which are defined in the `lib/sys/safety_private.hpp` file. These macros allow developers to customize the behavior of the safety system, including fault handling, reboot limits, and watchdog settings.
-
 ## Including and using the safety system
 
-To include the safety system in your project, you simply need to include the main safety header file, `safety.hpp`, in your source files.
+You can add the `t76_safety` library to your project to enable the safety system, and include `<t76/safety.hpp>` to your source code.
 
-At launch, initialize the safety system by calling the `T76::Sys::Safety::safetyInit()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
+At launch, initialize the safety system by calling the `T76::Sys::Safety::init()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
 
-On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::signalWatchdog()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+
+### Configuration
+
+The library provides a comprehensive list of settings that can be used to alter its behaviour. These can all be changed in the CMake configuration file for your project:
+
+- `T76_SAFETY_MAX_FAULT_DESC_LEN` - Maximum fault description string length (bytes)
+- `T76_SAFETY_MAX_FUNCTION_NAME_LEN` - Maximum function name string length (bytes)"
+- `T76_SAFETY_MAX_FILE_NAME_LEN` - Maximum file name string length (bytes)
+- `T76_SAFETY_MAX_REBOOTS` - Maximum consecutive reboots before entering safety monitor mode
+- `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` - Number of seconds after which reboot counter resets. 0 = no reset
+- `T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS` - Hardware watchdog timeout in milliseconds
+- `T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS` - Core 1 heartbeat timeout in milliseconds
+- `T76_SAFETY_WATCHDOG_TASK_PERIOD_MS` - Watchdog manager task check period in milliseconds
+- `T76_SAFETY_WATCHDOG_TASK_PRIORITY` - FreeRTOS priority for watchdog manager task
+- `T76_SAFETY_WATCHDOG_TASK_STACK_SIZE` Stack size for watchdog task
+- `T76_SAFETY_MAX_REGISTERED_COMPONENTS` - Maximum number of SafeableComponent objects that can be registered
+- `T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE` - Stack size for Safety Monitor USB task (words)
+- `T76_SAFETY_MONITOR_USB_TASK_PRIORITY` - FreeRTOS priority for Safety Monitor USB task
+- `T76_SAFETY_MONITOR_REPORTER_STACK_SIZE` - Stack size for Safety Monitor fault reporter task (words)
+- `T76_SAFETY_MONITOR_REPORTER_PRIORITY` - FreeRTOS priority for Safety Monitor fault reporter task
+- `T76_SAFETY_MONITOR_REPORT_INTERVAL_MS` - Interval between fault reports in milliseconds
+- `T76_SAFETY_MONITOR_CYCLE_DELAY_MS` - Delay between fault reporting cycles in milliseconds
 
 ## Triggering faults
 
@@ -127,11 +194,11 @@ When `abort()` is called, the safety system will log the fault with complete dia
 
 ## Fault recovery and reboot limiting
 
-The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` macro in the `safety_private.hpp` file.
+The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` setting.
 
 After the appropriate number of reboots, the system implements a lockout mechanism that prevents further restarts until the user intervenes by cycling power or issuing a hardware reset. This ensures that the instrument does not enter an endless reboot cycle, allowing for safe recovery and troubleshooting.
 
-After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` macro in the `safety_private.hpp` file. If set to `0`, the auto-reset feature is disabled.
+After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` setting. If set to `0`, the auto-reset feature is disabled.
 
 ## System safing and startup sequence
 
@@ -157,7 +224,7 @@ Finally, because the system uses statically allocated memory to manage the list 
 
 If enabled, the watchdog system must be initialized at startup by calling the `T76::Sys::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
 
-On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::signalWatchdog()` function to ensure that the watchdog timer is reset and the system remains responsive.
+On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function to ensure that the watchdog timer is reset and the system remains responsive.
 
 Note that the watchdog system requires both FreeRTOS and the main loop on core 1 to be running in order to function. If you require a lengthy setup process on either core that must block both cores at startup, consider initializing the watchdog system after the setup is complete; otherwise, the watchdog may trigger a reset during the setup phase. (This is also the reason why the watchdog initialization is not included in the main safety initialization function.)
 

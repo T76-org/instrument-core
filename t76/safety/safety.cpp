@@ -18,9 +18,12 @@
 #include <pico/stdlib.h>
 #include <pico/time.h>
 #include <pico/critical_section.h>
+#include <pico/cyw43_arch.h>
+#include <pico/status_led.h>
+
 #include <hardware/watchdog.h>
 
-#include "safety.hpp"
+#include "t76/safety.hpp"
 #include "safety_monitor.hpp"
 #include "safety_private.hpp"
 
@@ -106,7 +109,7 @@ namespace T76::Sys::Safety {
 
     // ========== Public API Implementation ==========
 
-    void safetyInit() {
+    void init() {
         if (gSafetyInitialized) {
             return; // Already initialized
         }
@@ -145,10 +148,10 @@ namespace T76::Sys::Safety {
                 // Create descriptive fault message including which core failed
                 static char watchdogFaultDesc[T76_SAFETY_MAX_FAULT_DESC_LEN];
                 uint8_t failureCore = gSharedFaultSystem->watchdogFailureCore;
-                if (failureCore == T76_SAFETY_CORE0_ID) {
+                if (failureCore == 0) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 0 (FreeRTOS) stopped responding");
-                } else if (failureCore == T76_SAFETY_CORE1_ID) {
+                } else if (failureCore == 0) {
                     snprintf(watchdogFaultDesc, sizeof(watchdogFaultDesc), 
                             "Hardware watchdog timeout: Core 1 (bare-metal) stopped responding");
                 } else {
@@ -175,16 +178,16 @@ namespace T76::Sys::Safety {
         gSharedFaultSystem->safetySystemReset = false;
         gSharedFaultSystem->watchdogFailureCore = T76_SAFETY_INVALID_CORE_ID;  // Reset for next boot cycle
 
-    makeAllComponentsSafe();
+        makeAllComponentsSafe();
 
-    // Configure and schedule auto-reset of reboot counter if enabled by default macro
-    scheduleFaultCountResetAlarm(T76_SAFETY_FAULTCOUNT_RESET_SECONDS);
-        
         // Check reboot count and handle safety monitor
         if (gSharedFaultSystem->rebootCount >= T76_SAFETY_MAX_REBOOTS) {
             // Too many consecutive reboots - enter safety monitor to display fault history
             SafetyMonitor::runSafetyMonitor();
         }
+        
+        // Configure and schedule auto-reset of reboot counter if enabled by default macro
+        scheduleFaultCountResetAlarm(T76_SAFETY_FAULTCOUNT_RESET_SECONDS);
         
         gSafetyInitialized = true;
 

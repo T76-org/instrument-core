@@ -21,7 +21,7 @@
 #include <pico/status_led.h>
 #include <tusb.h>
 
-#include "safety.hpp"
+#include "t76/safety.hpp"
 
 namespace T76::Sys {
 

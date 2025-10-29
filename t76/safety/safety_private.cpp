@@ -26,7 +26,7 @@ namespace T76::Sys::Safety {
      * @brief Pointer to shared fault system structure in persistent memory
      * 
      * Points to the SharedFaultSystem structure located in uninitialized memory
-     * that persists across system resets. Initialized during safetyInit() to
+     * that persists across system resets. Initialized during init() to
      * point to the gSharedMemory buffer cast to the proper structure type.
      */
     SharedFaultSystem* gSharedFaultSystem = nullptr;
@@ -45,7 +45,7 @@ namespace T76::Sys::Safety {
      * 
      * Tracks whether the safety system has been initialized on this core
      * to prevent multiple initialization attempts and ensure proper setup
-     * sequence. Set to true after successful safetyInit() completion.
+     * sequence. Set to true after successful init() completion.
      */
     bool gSafetyInitialized = false;
 
@@ -53,7 +53,7 @@ namespace T76::Sys::Safety {
      * @brief Inter-core synchronization critical section for shared memory access
      * 
      * Provides thread-safe access to shared memory structures between both
-     * cores of the RP2350. Initialized during safetyInit() using Pico SDK
+     * cores of the RP2350. Initialized during init() using Pico SDK
      * critical section mechanism for reliable multi-core synchronization
      * with automatic interrupt handling.
      */
