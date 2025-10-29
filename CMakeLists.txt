@@ -59,7 +59,7 @@ pico_set_program_version(t76-instrument-core "0.1")
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_usb(t76-instrument-core 1)
 
-add_subdirectory(sys)
+add_subdirectory(t76)
 
 # Add the standard library to the build
 target_link_libraries(t76-instrument-core
