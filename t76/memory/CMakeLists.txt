@@ -6,7 +6,7 @@ add_library(${LIBRARY_NAME} STATIC
     memory.cpp
 )
 
-option(T76_USE_GLOBAL_LOCKS "Enable the use of global locks to allow safe memory allocation from core 1" ON)
+option(T76_USE_GLOBAL_LOCKS "Enable the use of global locks to allow safe memory allocation from core 1" OFF)
 
 # Public include directories (headers that consumers of this library need)
 target_include_directories(${LIBRARY_NAME} PUBLIC
