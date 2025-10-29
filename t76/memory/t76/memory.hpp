@@ -58,6 +58,6 @@ namespace T76::Sys::Memory {
      *        - All allocations still come from the single FreeRTOS heap
      * 
      */
-    void memoryInit();
+    void init();
 
 } // namespace T76::IC::Sys::Memory

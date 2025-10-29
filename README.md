@@ -58,7 +58,7 @@ These functions can be enabled by adding the `t76_memory` library to your projec
 
 The memory management system can be configured by changing the `T76_USE_GLOBAL_LOCKS` CMake variable in the project's configuration files or build system. Set it to `OFF` to disable global locks (single-core mode) or `ON` to enable them (multi-core mode).
 
-At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::memoryInit()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
+At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::init()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
 
 # Safety features
 
@@ -90,9 +90,9 @@ The safety system provides a safing mechanism that puts the instrument into a sa
 
 You can add the `t76_safety` library to your project to enable the safety system, and include `<t76/safety.hpp>` to your source code.
 
-At launch, initialize the safety system by calling the `T76::Sys::Safety::safetyInit()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
+At launch, initialize the safety system by calling the `T76::Sys::Safety::init()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
 
-On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::signalWatchdog()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
 
 ### Configuration
 
@@ -179,7 +179,7 @@ Finally, because the system uses statically allocated memory to manage the list 
 
 If enabled, the watchdog system must be initialized at startup by calling the `T76::Sys::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
 
-On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::signalWatchdog()` function to ensure that the watchdog timer is reset and the system remains responsive.
+On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function to ensure that the watchdog timer is reset and the system remains responsive.
 
 Note that the watchdog system requires both FreeRTOS and the main loop on core 1 to be running in order to function. If you require a lengthy setup process on either core that must block both cores at startup, consider initializing the watchdog system after the setup is complete; otherwise, the watchdog may trigger a reset during the setup phase. (This is also the reason why the watchdog initialization is not included in the main safety initialization function.)
 

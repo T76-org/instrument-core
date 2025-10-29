@@ -106,7 +106,7 @@ namespace T76::Sys::Safety {
 
     // ========== Public API Implementation ==========
 
-    void safetyInit() {
+    void init() {
         if (gSafetyInitialized) {
             return; // Already initialized
         }

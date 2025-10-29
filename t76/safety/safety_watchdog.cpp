@@ -145,7 +145,7 @@ namespace T76::Sys::Safety {
 
         // Initialize shared memory for heartbeat communication
         gCore1LastHeartbeat = 0;
-        // watchdogFailureCore is now initialized in safetyInit()
+        // watchdogFailureCore is now initialized in init()
 
         // Create the watchdog manager task with lowest priority
         // This ensures it only runs when no other tasks need CPU time,

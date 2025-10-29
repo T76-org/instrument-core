@@ -130,7 +130,7 @@ namespace T76::Sys::Safety {
      * any other safety functions are used. It sets up shared memory structures
      * and configures the default fault handlers.
      */
-    void safetyInit();
+    void init();
 
     /**
      * @brief Initialize dual-core watchdog protection system

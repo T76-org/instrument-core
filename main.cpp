@@ -145,10 +145,10 @@ void core1Task() {
  */
 int main() {
     // Initialize safety system first on Core 0
-    T76::Sys::Safety::safetyInit();
+    T76::Sys::Safety::init();
     
     // Initialize memory management system
-    T76::Sys::Memory::memoryInit();
+    T76::Sys::Memory::init();
 
     // Initialize stdio and status LED
     stdio_init_all();
