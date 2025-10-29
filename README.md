@@ -31,7 +31,52 @@ Core 1 is reserved for bare-metal critical tasks that have strict timing and pri
 
 ## Using the template
 
-TODO: Explain how to include the template in a new project.
+TODO: Please note that this section does not represent the current state of the project, as it is still under development.
+
+The IC includes a convenient template that makes it easy to build your own firmware that implements the T76 framework.
+
+The template is designed to be used as a git submodule within your own project repository. This allows you to easily track changes to the IC framework while keeping your own code separate.
+
+To create a new project using the IC template, follow these steps:
+
+- Create a new git repository for your project.
+- Use the Pico SDK to create a new project; make sure that you enable C++ and stdio-over-USB support (`pico_enable_stdio_usb`).
+- Add the IC repository as a git submodule within your project repository:
+
+  ```bash
+  git submodule add https://github.com/t76-org/instrument-core.git
+  ```
+
+- Modify the CMakeLists.txt file in your project to include the IC template and link against the application library:
+
+  ```cmake
+  add_subdirectory(instrument-core)
+  target_link_libraries(your_project_name PRIVATE t76_ic)
+  ```
+
+  Ensure that you replace `your_project_name` with the actual name of your project target, and that this code appears after the call to `pico_sdk_init()`
+
+- Create your own application class by inheriting from `T76::Sys::App` and implementing the required virtual methods.
+
+## Application lifecycle
+
+The `T76::Sys::App` class defines the lifecycle of the application, ensuring that initialization and main loop execution are handled correctly across both cores. You will typically want to create a derived class and statically instantiate it in your main application file. You can then execute its `run()` method from `main()` to start the application.
+
+You will need to implement the following methods in your derived application class:
+
+- `_init()`: This method is called on core 0 after the IC has been initialized but before `_initCore0()` and `_startCore1()` are called. Use this method to perform any early initialization required before core launch, such as setting up standard I/O or initializing hardware components needed by both cores.
+- `_initCore0()`: This method is called on core 0 after core 1 has been launched but before the watchdog is initialized and the FreeRTOS scheduler starts. Use this method to perform any initialization specific to core 0, such as setting up FreeRTOS tasks.
+- `_startCore1()`: This method is called on core 0 to start core 1. You should implement this method to launch core 1 code directly. Remember that, if you have enabled memory allocation on core 1, it will not be available until after the FreeRTOS scheduler has started.
+
+The safety system is not initialized until after `run()` is called; this gives you the opportunity to create any components that cannot be statically allocated within your application class's constructor. `T76::Sys::App` is also a subclass of `T76::Sys::Safety::SafeableComponent`, so you can override the `makeSafe()` and `activate()` methods to implement application-level safing and activation logic.
+
+The app template defaults to a sane configuration that includes:
+
+- Memory management _without_ support for core 1 allocations (to maximize performance)
+- Safety system with watchdog support
+- USBTMC, CDC, and SCPI support
+
+If you with to modify this configuration, details about each subsystem are provided in the relevant sections below.
 
 ## Memory management
 

@@ -17,18 +17,51 @@
 
 #include <t76/app.hpp>
 
+/**
+ * @brief Application implementation demonstrating the T76 framework
+ * 
+ * This class extends T76::Sys::App to create a dual-core application that:
+ * - Runs TinyUSB task for USB device functionality
+ * - Demonstrates memory management with heap monitoring
+ * - Tests fault handling system by triggering memory management faults
+ * - Provides Core 1 execution with watchdog heartbeat monitoring
+ * 
+ * The application serves as both a functional example and a test harness
+ * for the safety system's fault detection and reporting capabilities.
+ */
 class App : public T76::Sys::App {
 
 public:
 
+    /**
+     * @brief Activate the application component
+     * 
+     * Called by the safety system to activate this component. This implementation
+     * always returns true to indicate successful activation.
+     * 
+     * @return true Always succeeds
+     */
     virtual bool activate() override {
         return true;
     }
 
+    /**
+     * @brief Put the application into a safe state
+     * 
+     * Called by the safety system when a fault is detected. This implementation
+     * currently does nothing, relying on the framework's safety mechanisms.
+     * Production applications should override this to perform application-specific
+     * safe shutdown procedures.
+     */
     virtual void makeSafe() override {
 
     }
 
+    /**
+     * @brief Get the component name for safety system identification
+     * 
+     * @return const char* The component name "App"
+     */
     virtual const char* getComponentName() const override {
         return "App";
     }
@@ -59,6 +92,18 @@ protected:
         *null_ptr = 0xDEADBEEF;
     }
 
+    /**
+     * @brief Print task that demonstrates memory allocation and fault triggering
+     * 
+     * This FreeRTOS task repeatedly:
+     * - Allocates memory to test the memory management system
+     * - Prints heap statistics and iteration count
+     * - Triggers a memory management fault after 30 iterations to test
+     *   the safety system's fault detection and reporting
+     * 
+     * @note Runs on Core 0 as a FreeRTOS task
+     * @note Intentionally triggers faults for testing purposes
+     */
     void _printTask() {
         int count = 0;
 
@@ -79,6 +124,16 @@ protected:
         }
     }
 
+    /**
+     * @brief TinyUSB device task for USB functionality
+     * 
+     * This FreeRTOS task initializes the TinyUSB stack and continuously
+     * services USB device operations by calling tud_task(). Required for
+     * USB device functionality including CDC (serial over USB) support.
+     * 
+     * @note Runs on Core 0 as a FreeRTOS task
+     * @note Runs every 10ms to ensure responsive USB handling
+     */
     void _tusbTask() {
         // Initialize TinyUSB
         tusb_init();
@@ -90,12 +145,34 @@ protected:
         }
     }
 
+    /**
+     * @brief Early initialization before core launch
+     * 
+     * Initializes standard I/O and the status LED. Called after safety
+     * and memory system initialization but before Core 1 launch.
+     * 
+     * @note Called on Core 0 only
+     * @note Runs before FreeRTOS scheduler starts
+     */
     virtual void _init() override {
         // Initialize stdio and status LED
         stdio_init_all();
         status_led_init();
     }
 
+    /**
+     * @brief Core 0 initialization and task creation
+     * 
+     * Creates two FreeRTOS tasks:
+     * - tusb: Handles TinyUSB device operations (priority 1, 256 words stack)
+     * - print: Demonstrates memory management and triggers test faults (priority 10, 2256 words stack)
+     * 
+     * Called after Core 1 has been launched and the dual-core watchdog system
+     * has been configured. This is where Core 0 should create its tasks and
+     * initialize any Core 0-specific resources.
+     * 
+     * @note Called on Core 0 only, just before FreeRTOS scheduler starts
+     */
     virtual void _initCore0() override {
         // Create FreeRTOS tasks
         xTaskCreate(
@@ -123,6 +200,23 @@ protected:
         );
     }
 
+    /**
+     * @brief Core 1 execution loop
+     * 
+     * Runs continuously on Core 1, demonstrating:
+     * - Watchdog heartbeat feeding to keep Core 1 monitored
+     * - Memory allocation and heap monitoring on Core 1
+     * - Status LED toggling for visual feedback
+     * - Console output showing core number and iteration count
+     * 
+     * This function never returns under normal operation. The 100ms loop
+     * interval ensures the watchdog heartbeat is sent well within the
+     * timeout period.
+     * 
+     * @note Called on Core 1 only
+     * @note Runs in bare-metal context (no FreeRTOS on Core 1)
+     * @note Must call feedWatchdogFromCore1() regularly to prevent watchdog timeout
+     */
     virtual void _startCore1() override {
         int count = 0;
 
@@ -143,6 +237,13 @@ protected:
 
 };
 
+/**
+ * @brief Global application instance
+ * 
+ * Creates the singleton App instance that will be run by main().
+ * Construction registers this instance as the global singleton for
+ * Core 1 entry point access.
+ */
 App app;
 
 /**
