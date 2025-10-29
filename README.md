@@ -29,7 +29,9 @@ The IC uses FreeRTOS to manage all non-critical tasks. FreeRTOS is configured to
 
 Core 1 is reserved for bare-metal critical tasks that have strict timing and priority requirements.
 
-TODO: Expand this with more information on task management, inter-core communication, etc., especially with regards to core 1.
+## Using the template
+
+TODO: Explain how to include the template in a new project.
 
 ## Memory management
 
@@ -52,7 +54,9 @@ However, since FreeRTOS is only running on core 0, special care must be taken wh
 
 ### Configuration
 
-The memory management system can be configured by defining the `T76_USE_GLOBAL_LOCKS` macro in the project's configuration files or build system. Set it to `0` to disable global locks (single-core mode) or `1` to enable them (multi-core mode).
+These functions can be enabled by adding the `t76_memory` library to your project.
+
+The memory management system can be configured by changing the `T76_USE_GLOBAL_LOCKS` CMake variable in the project's configuration files or build system. Set it to `OFF` to disable global locks (single-core mode) or `ON` to enable them (multi-core mode).
 
 At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::memoryInit()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
 
@@ -82,17 +86,35 @@ On core 1, bare-metal critical tasks must also ensure that they remain responsiv
 
 The safety system provides a safing mechanism that puts the instrument into a safe state when a critical fault occurs. In safe mode, the instrument disables non-essential functions and enters a low-power state, allowing for safe recovery and troubleshooting.
 
-## Configuration
-
-The safety system can be configured through a set of macros, which are defined in the `lib/sys/safety_private.hpp` file. These macros allow developers to customize the behavior of the safety system, including fault handling, reboot limits, and watchdog settings.
-
 ## Including and using the safety system
 
-To include the safety system in your project, you simply need to include the main safety header file, `safety.hpp`, in your source files.
+You can add the `t76_safety` library to your project to enable the safety system.
 
 At launch, initialize the safety system by calling the `T76::Sys::Safety::safetyInit()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
 
 On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::signalWatchdog()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+
+### Configuration
+
+The library provides a comprehensive list of settings that can be used to alter its behaviour. These can all be changed in the CMake configuration file for your project:
+
+- `T76_SAFETY_MAX_FAULT_DESC_LEN` - Maximum fault description string length (bytes)
+- `T76_SAFETY_MAX_FUNCTION_NAME_LEN` - Maximum function name string length (bytes)"
+- `T76_SAFETY_MAX_FILE_NAME_LEN` - Maximum file name string length (bytes)
+- `T76_SAFETY_MAX_REBOOTS` - Maximum consecutive reboots before entering safety monitor mode
+- `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` - Number of seconds after which reboot counter resets. 0 = no reset
+- `T76_SAFETY_DEFAULT_WATCHDOG_TIMEOUT_MS` - Hardware watchdog timeout in milliseconds
+- `T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS` - Core 1 heartbeat timeout in milliseconds
+- `T76_SAFETY_WATCHDOG_TASK_PERIOD_MS` - Watchdog manager task check period in milliseconds
+- `T76_SAFETY_WATCHDOG_TASK_PRIORITY` - FreeRTOS priority for watchdog manager task
+- `T76_SAFETY_WATCHDOG_TASK_STACK_SIZE` Stack size for watchdog task
+- `T76_SAFETY_MAX_REGISTERED_COMPONENTS` - Maximum number of SafeableComponent objects that can be registered
+- `T76_SAFETY_MONITOR_USB_TASK_STACK_SIZE` - Stack size for Safety Monitor USB task (words)
+- `T76_SAFETY_MONITOR_USB_TASK_PRIORITY` - FreeRTOS priority for Safety Monitor USB task
+- `T76_SAFETY_MONITOR_REPORTER_STACK_SIZE` - Stack size for Safety Monitor fault reporter task (words)
+- `T76_SAFETY_MONITOR_REPORTER_PRIORITY` - FreeRTOS priority for Safety Monitor fault reporter task
+- `T76_SAFETY_MONITOR_REPORT_INTERVAL_MS` - Interval between fault reports in milliseconds
+- `T76_SAFETY_MONITOR_CYCLE_DELAY_MS` - Delay between fault reporting cycles in milliseconds
 
 ## Triggering faults
 
