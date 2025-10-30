@@ -24,7 +24,7 @@
 #include "safety_private.hpp"
 
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     /**
      * @brief Minimal string copy function optimized for safety system
@@ -316,5 +316,5 @@ namespace T76::Sys::Safety {
         getStackInfo();
     }
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety
 

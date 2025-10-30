@@ -23,7 +23,7 @@
 
 #include "t76/safety.hpp"
 
-namespace T76::Sys {
+namespace T76::Core {
 
     namespace Safety {
 
@@ -34,7 +34,7 @@ namespace T76::Sys {
     namespace SafetyMonitor {
 
         // Forward declaration of shared fault system structure
-        namespace Safety = T76::Sys::Safety;
+        namespace Safety = T76::Core::Safety;
 
         /**
          * @brief FreeRTOS task for TinyUSB device processing
@@ -70,21 +70,21 @@ namespace T76::Sys {
      * @param type Fault type.
      * @return Constant string name.
      */
-        const char* faultTypeToString(const T76::Sys::Safety::FaultType type) {
+        const char* faultTypeToString(const T76::Core::Safety::FaultType type) {
             switch (type) {
-                case T76::Sys::Safety::FaultType::UNKNOWN: return "UNKNOWN";
-                case T76::Sys::Safety::FaultType::FREERTOS_ASSERT: return "FREERTOS_ASSERT";
-                case T76::Sys::Safety::FaultType::STACK_OVERFLOW: return "STACK_OVERFLOW";
-                case T76::Sys::Safety::FaultType::MALLOC_FAILED: return "MALLOC_FAILED";
-                case T76::Sys::Safety::FaultType::C_ASSERT: return "C_ASSERT";
-                case T76::Sys::Safety::FaultType::PICO_HARD_ASSERT: return "PICO_HARD_ASSERT";
-                case T76::Sys::Safety::FaultType::HARDWARE_FAULT: return "HARDWARE_FAULT";
-                case T76::Sys::Safety::FaultType::INTERCORE_FAULT: return "INTERCORE_FAULT";
-                case T76::Sys::Safety::FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
-                case T76::Sys::Safety::FaultType::INVALID_STATE: return "INVALID_STATE";
-                case T76::Sys::Safety::FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
-                case T76::Sys::Safety::FaultType::WATCHDOG_TIMEOUT: return "WATCHDOG_TIMEOUT";
-                case T76::Sys::Safety::FaultType::ACTIVATION_FAILED: return "ACTIVATION_FAILED";
+                case T76::Core::Safety::FaultType::UNKNOWN: return "UNKNOWN";
+                case T76::Core::Safety::FaultType::FREERTOS_ASSERT: return "FREERTOS_ASSERT";
+                case T76::Core::Safety::FaultType::STACK_OVERFLOW: return "STACK_OVERFLOW";
+                case T76::Core::Safety::FaultType::MALLOC_FAILED: return "MALLOC_FAILED";
+                case T76::Core::Safety::FaultType::C_ASSERT: return "C_ASSERT";
+                case T76::Core::Safety::FaultType::PICO_HARD_ASSERT: return "PICO_HARD_ASSERT";
+                case T76::Core::Safety::FaultType::HARDWARE_FAULT: return "HARDWARE_FAULT";
+                case T76::Core::Safety::FaultType::INTERCORE_FAULT: return "INTERCORE_FAULT";
+                case T76::Core::Safety::FaultType::MEMORY_CORRUPTION: return "MEMORY_CORRUPTION";
+                case T76::Core::Safety::FaultType::INVALID_STATE: return "INVALID_STATE";
+                case T76::Core::Safety::FaultType::RESOURCE_EXHAUSTED: return "RESOURCE_EXHAUSTED";
+                case T76::Core::Safety::FaultType::WATCHDOG_TIMEOUT: return "WATCHDOG_TIMEOUT";
+                case T76::Core::Safety::FaultType::ACTIVATION_FAILED: return "ACTIVATION_FAILED";
                 default: return "INVALID";
             }
         }
@@ -95,7 +95,7 @@ namespace T76::Sys {
      * and stack details when available.
      * @param faultInfo Fault information to display.
      */
-        static void printFaultInfoToConsole(const T76::Sys::Safety::FaultInfo& faultInfo) {
+        static void printFaultInfoToConsole(const T76::Core::Safety::FaultInfo& faultInfo) {
             printf("\n=== SYSTEM FAULT DETECTED ===\n");
             printf("Timestamp: %lu ms\n", faultInfo.timestamp);
             printf("Core: %lu\n", faultInfo.coreId);
@@ -255,6 +255,6 @@ namespace T76::Sys {
 
     } // namespace SafetyMonitor
 
-} // namespace T76::Sys
+} // namespace T76::Core
 
 

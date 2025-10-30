@@ -20,7 +20,7 @@
 
 #include "safety_private.hpp"
 
-namespace T76::Sys::Safety { 
+namespace T76::Core::Safety { 
 
     /**
      * @brief Pointer to shared fault system structure in persistent memory

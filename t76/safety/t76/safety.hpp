@@ -70,7 +70,7 @@
 #include "safety.hpp"
 
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     /**
      * @brief Abstract base class for components that can participate in safety operations
@@ -222,7 +222,7 @@ namespace T76::Sys::Safety {
      */
     void makeAllComponentsSafe();
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety
 
 // ========== C STANDARD LIBRARY OVERRIDES ==========
 
@@ -269,8 +269,8 @@ void __t76_abort_impl(const char *file, int line, const char *func);
 #define T76_ASSERT(expr, description) \
     do { \
         if (!(expr)) { \
-            T76::Sys::Safety::reportFault( \
-                T76::Sys::Safety::FaultType::C_ASSERT, \
+            T76::Core::Safety::reportFault( \
+                T76::Core::Safety::FaultType::C_ASSERT, \
                 description, \
                 __FILE__, \
                 __LINE__, \

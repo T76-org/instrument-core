@@ -43,7 +43,7 @@
 #include <t76/safety.hpp>
 
 
-namespace T76::Sys {
+namespace T76::Core {
 
     /**
      * @brief Base class for dual-core FreeRTOS applications on RP2350
@@ -69,7 +69,7 @@ namespace T76::Sys {
      * Derived classes may optionally override:
      * - _init(): Early initialization before core launch
      */
-    class App : public T76::Sys::Safety::SafeableComponent {
+    class App : public T76::Core::Safety::SafeableComponent {
     public:
         /**
          * @brief Construct the App and register as the global singleton instance
@@ -182,4 +182,4 @@ namespace T76::Sys {
         virtual void _startCore1() = 0;
     };
     
-} // namespace T76::Sys
+} // namespace T76::Core

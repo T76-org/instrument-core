@@ -32,7 +32,7 @@
 #include "t76/safety.hpp"
 #include "safety_private.hpp"
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     /**
      * @brief Component registry structure
@@ -243,4 +243,4 @@ namespace T76::Sys::Safety {
         }
     }
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety

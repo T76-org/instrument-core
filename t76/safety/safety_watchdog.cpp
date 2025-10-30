@@ -33,7 +33,7 @@
 #include "safety_private.hpp"
 #include "t76/safety.hpp"
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     // Inter-core communication constants - now using centralized configuration
     static const uint32_t CORE1_HEARTBEAT_TIMEOUT_MS = T76_SAFETY_CORE1_HEARTBEAT_TIMEOUT_MS;
@@ -193,5 +193,5 @@ namespace T76::Sys::Safety {
         gCore1LastHeartbeat = to_ms_since_boot(get_absolute_time());
     }
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety
 

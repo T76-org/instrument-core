@@ -65,8 +65,8 @@ extern "C" {
             gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
         }
         
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::FREERTOS_ASSERT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::FREERTOS_ASSERT,
             gWrapperDescription, file, static_cast<uint32_t>(line), func
         );
     }
@@ -88,8 +88,8 @@ extern "C" {
      * @note Only called on Core 0 where FreeRTOS heap management is active
      */
     void vApplicationMallocFailedHook(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::MALLOC_FAILED,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::MALLOC_FAILED,
             "FreeRTOS malloc failed - insufficient heap memory",
             __FILE__, __LINE__, __func__
         );
@@ -128,8 +128,8 @@ extern "C" {
             gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
         }
         
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::STACK_OVERFLOW,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::STACK_OVERFLOW,
             gWrapperDescription, __FILE__, __LINE__, __func__
         );
     }
@@ -153,8 +153,8 @@ extern "C" {
      * @note This handler must be extremely minimal to avoid further faults
      */
     void isr_hardfault(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::HARDWARE_FAULT,
             "Hardware fault (HardFault) occurred",
             __FILE__, __LINE__, __func__
         );
@@ -178,8 +178,8 @@ extern "C" {
      * @note Only occurs on Cortex-M processors with MPU enabled
      */
     void isr_memmanage(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::HARDWARE_FAULT,
             "Memory management fault occurred",
             __FILE__, __LINE__, __func__
         );
@@ -203,8 +203,8 @@ extern "C" {
      * @note Can be precise (exact instruction) or imprecise (delayed)
      */
     void isr_busfault(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::HARDWARE_FAULT,
             "Bus fault occurred",
             __FILE__, __LINE__, __func__
         );
@@ -229,8 +229,8 @@ extern "C" {
      * @note May indicate compiler or toolchain issues
      */
     void isr_usagefault(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::HARDWARE_FAULT,
             "Usage fault occurred",
             __FILE__, __LINE__, __func__
         );
@@ -245,8 +245,8 @@ extern "C" {
      * 
      */
     void isr_securefault(void) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::HARDWARE_FAULT,
             "Secure fault occurred",
             __FILE__, __LINE__, __func__
         );
@@ -286,8 +286,8 @@ extern "C" {
             gWrapperDescription[sizeof(gWrapperDescription) - 1] = '\0';
         }
         
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::C_ASSERT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::C_ASSERT,
             gWrapperDescription, file, static_cast<uint32_t>(line), func
         );
         
@@ -318,8 +318,8 @@ extern "C" {
      * @note This function is compatible with the abort() macro override
      */
     void __t76_abort_impl(const char *file, int line, const char *func) {
-        T76::Sys::Safety::reportFault(
-            T76::Sys::Safety::FaultType::C_ASSERT,
+        T76::Core::Safety::reportFault(
+            T76::Core::Safety::FaultType::C_ASSERT,
             "abort() called",
             file, static_cast<uint32_t>(line), func
         );
