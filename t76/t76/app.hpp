@@ -41,6 +41,7 @@
 
 #include <t76/memory.hpp>
 #include <t76/safety.hpp>
+#include <t76/usb_interface.hpp>
 
 
 namespace T76::Core {
@@ -116,6 +117,8 @@ namespace T76::Core {
          * @note Should only reference one App instance throughout application lifetime
          */
         static App *_globalInstance;
+
+        T76::Core::USB::Interface _usbInterface; ///< USB interface instance for managing USB communication
 
         /**
          * @brief Core 1 entry point trampoline function

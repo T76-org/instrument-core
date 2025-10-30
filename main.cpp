@@ -116,9 +116,9 @@ protected:
             // char *f = (char *)malloc(5000);
             // f[0] = 0;
 
-            if (count > 30) {
-                triggerMemManageFault();  // Trigger HardFault for testing
-            }
+            // if (count > 30) {
+            //     triggerMemManageFault();  // Trigger HardFault for testing
+            // }
             
             vTaskDelay(100 / portTICK_PERIOD_MS);
         }
@@ -219,16 +219,14 @@ protected:
      */
     virtual void _startCore1() override {
         int count = 0;
+        char ptr[100];
 
         while (true) {
             // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
             T76::Core::Safety::feedWatchdogFromCore1();
             
-            // Your application code here
-            char *ptr = static_cast<char*>(malloc(320));
             snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
             fputs(ptr, stdout);
-            free(ptr);
             status_led_set_state(!status_led_get_state());
             
             sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)

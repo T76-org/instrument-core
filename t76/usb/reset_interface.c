@@ -74,7 +74,7 @@ const uint8_t desc_ms_os_20[] = {
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
-const tusb_desc_webT76_IC_USB_URL_t desc_url = {
+const tusb_desc_webusb_url_t desc_url = {
 	.bLength         = 3 + sizeof(T76_IC_USB_URL) - 1,
 	.bDescriptorType = 3,
 	.bScheme         = 1,

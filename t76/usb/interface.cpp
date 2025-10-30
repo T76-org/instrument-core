@@ -4,7 +4,7 @@
  * 
  */
 
-#include "interface.hpp"
+#include "t76/usb_interface.hpp"
 
 #include <FreeRTOS.h>
 #include <task.h>

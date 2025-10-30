@@ -29,10 +29,10 @@ target_include_directories(${LIBRARY_NAME} PRIVATE
 
 # Link required libraries
 target_link_libraries(${LIBRARY_NAME} PUBLIC
-    pico_stdlib
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
     t76_ic_memory
     t76_ic_safety
+    t76_ic_usb
 )
 

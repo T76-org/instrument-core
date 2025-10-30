@@ -3,7 +3,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
-#include "interface.hpp"
+#include "t76/usb_interface.hpp"
 
 using namespace T76::Core::USB;
 

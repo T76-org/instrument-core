@@ -245,7 +245,7 @@ namespace T76::Core::USB {
          * 
          * @return true if the control transfer was successfully handled, false otherwise.
          */
-        virtual bool _onVendorControlTransferIn(uint8_t port, const tusb_control_request_t *request) {};
+        virtual bool _onVendorControlTransferIn(uint8_t port, const tusb_control_request_t *request) { return true; };
 
         /**
          * @brief Vendor control transfer OUT callback.
@@ -260,7 +260,7 @@ namespace T76::Core::USB {
          * 
          * @return true if the control transfer was successfully handled, false otherwise.
          */
-        virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) {};
+        virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) { return true; };
 
         /**
          * @brief USBTMC data received callback.

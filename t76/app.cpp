@@ -94,6 +94,9 @@ void App::run() {
     // Initialize Core 0
     _initCore0();
 
+    // Initialize USB interface
+    _usbInterface.init();
+
     // Start the FreeRTOS scheduler
     vTaskStartScheduler();
 

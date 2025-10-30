@@ -42,7 +42,7 @@ enum {
 };
 
 extern uint8_t const desc_ms_os_20[];
-extern const tusb_desc_webT76_IC_USB_URL_t desc_url;
+extern const tusb_desc_webusb_url_t desc_url;
 extern uint8_t reset_interface_number;
 
 #endif /* USB_DESCRIPTORS_H_ */
