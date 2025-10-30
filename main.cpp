@@ -20,7 +20,7 @@
 /**
  * @brief Application implementation demonstrating the T76 framework
  * 
- * This class extends T76::Sys::App to create a dual-core application that:
+ * This class extends T76::Core::App to create a dual-core application that:
  * - Runs TinyUSB task for USB device functionality
  * - Demonstrates memory management with heap monitoring
  * - Tests fault handling system by triggering memory management faults
@@ -29,7 +29,7 @@
  * The application serves as both a functional example and a test harness
  * for the safety system's fault detection and reporting capabilities.
  */
-class App : public T76::Sys::App {
+class App : public T76::Core::App {
 
 public:
 
@@ -222,7 +222,7 @@ protected:
 
         while (true) {
             // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
-            T76::Sys::Safety::feedWatchdogFromCore1();
+            T76::Core::Safety::feedWatchdogFromCore1();
             
             // Your application code here
             char *ptr = static_cast<char*>(malloc(320));

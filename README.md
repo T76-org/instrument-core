@@ -56,11 +56,11 @@ To create a new project using the IC template, follow these steps:
 
   Ensure that you replace `your_project_name` with the actual name of your project target, and that this code appears after the call to `pico_sdk_init()`
 
-- Create your own application class by inheriting from `T76::Sys::App` and implementing the required virtual methods.
+- Create your own application class by inheriting from `T76::Core::App` and implementing the required virtual methods.
 
 ## Application lifecycle
 
-The `T76::Sys::App` class defines the lifecycle of the application, ensuring that initialization and main loop execution are handled correctly across both cores. You will typically want to create a derived class and statically instantiate it in your main application file. You can then execute its `run()` method from `main()` to start the application.
+The `T76::Core::App` class defines the lifecycle of the application, ensuring that initialization and main loop execution are handled correctly across both cores. You will typically want to create a derived class and statically instantiate it in your main application file. You can then execute its `run()` method from `main()` to start the application.
 
 You will need to implement the following methods in your derived application class:
 
@@ -68,7 +68,7 @@ You will need to implement the following methods in your derived application cla
 - `_initCore0()`: This method is called on core 0 after core 1 has been launched but before the watchdog is initialized and the FreeRTOS scheduler starts. Use this method to perform any initialization specific to core 0, such as setting up FreeRTOS tasks.
 - `_startCore1()`: This method is called on core 0 to start core 1. You should implement this method to launch core 1 code directly. Remember that, if you have enabled memory allocation on core 1, it will not be available until after the FreeRTOS scheduler has started.
 
-The safety system is not initialized until after `run()` is called; this gives you the opportunity to create any components that cannot be statically allocated within your application class's constructor. `T76::Sys::App` is also a subclass of `T76::Sys::Safety::SafeableComponent`, so you can override the `makeSafe()` and `activate()` methods to implement application-level safing and activation logic.
+The safety system is not initialized until after `run()` is called; this gives you the opportunity to create any components that cannot be statically allocated within your application class's constructor. `T76::Core::App` is also a subclass of `T76::Core::Safety::SafeableComponent`, so you can override the `makeSafe()` and `activate()` methods to implement application-level safing and activation logic.
 
 The app template defaults to a sane configuration that includes:
 
@@ -103,7 +103,7 @@ These functions can be enabled by adding the `t76_memory` library to your projec
 
 The memory management system can be configured by changing the `T76_USE_GLOBAL_LOCKS` CMake variable in the project's configuration files or build system. Set it to `OFF` to disable global locks (single-core mode) or `ON` to enable them (multi-core mode).
 
-At startup, the memory management system must be initialized by calling the `T76::Sys::Memory::init()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
+At startup, the memory management system must be initialized by calling the `T76::Core::Memory::init()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
 
 # Safety features
 
@@ -135,9 +135,9 @@ The safety system provides a safing mechanism that puts the instrument into a sa
 
 You can add the `t76_safety` library to your project to enable the safety system, and include `<t76/safety.hpp>` to your source code.
 
-At launch, initialize the safety system by calling the `T76::Sys::Safety::init()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
+At launch, initialize the safety system by calling the `T76::Core::Safety::init()` function. This function sets up the necessary data structures and prepares the system for fault handling, and should be called early in the system initialization process from core 0. It also sets up the watchdog timer, and kicks off the watchdog feeding task.
 
-On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
+On core 1, you need to ensure that the bare-metal critical tasks periodically signal the watchdog feeding task on core 0 to indicate that they are still responsive. This can be done by calling the `T76::Core::Safety::feedWatchdogFromCore1()` function from within the critical tasks. It is good practice to call this function at regular intervals within portions of the critical core whose failure would compromise system safety or functionality; typically, this may mean within the main loop or other long-running sections of the code.
 
 ### Configuration
 
@@ -163,7 +163,7 @@ The library provides a comprehensive list of settings that can be used to alter 
 
 ## Triggering faults
 
-While the system catches system-level faults automatically, developers can also trigger custom faults using the `T76::Sys::Safety::reportFault()` function. This function allows you to specify the fault type, location, and additional context information.
+While the system catches system-level faults automatically, developers can also trigger custom faults using the `T76::Core::Safety::reportFault()` function. This function allows you to specify the fault type, location, and additional context information.
 
 When a fault is reported, the safety system captures the relevant information and takes appropriate action based on the fault type and system state before safing the system and rebooting.
 
@@ -212,9 +212,9 @@ To address these concerns, the safety system implements a two-shot startup proce
 
 - Otherwise, it proceeds to activate all components and enter normal operation mode.
 
-To participate in this safing mechanisms, components need to implement the `T76::Sys::Safety::SafeableComponent` interface, which defines a `makeSafe()` method, which is called during the safing process, and an `activate()` method, which is called to bring the component back to normal operation and returns a boolean indicating success or failure.
+To participate in this safing mechanisms, components need to implement the `T76::Core::Safety::SafeableComponent` interface, which defines a `makeSafe()` method, which is called during the safing process, and an `activate()` method, which is called to bring the component back to normal operation and returns a boolean indicating success or failure.
 
-Components should register themselves with the safety system using the `T76::Sys::Safety::registerSafeableComponent()` function.
+Components should register themselves with the safety system using the `T76::Core::Safety::registerSafeableComponent()` function.
 
 Note that the system makes no guarantees about the order in which components are safed or activated. Therefore, components should be designed to handle safing and activation independently of other components. Also, the system assumes that components are statically allocated and remain in memory for the lifetime of the program. This is, generally, a good practice for safety-critical components, especially those involved in the safing process.
 
@@ -222,9 +222,9 @@ Finally, because the system uses statically allocated memory to manage the list 
 
 ## Dual-core watchdog initialization
 
-If enabled, the watchdog system must be initialized at startup by calling the `T76::Sys::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
+If enabled, the watchdog system must be initialized at startup by calling the `T76::Core::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
 
-On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Sys::Safety::feedWatchdogFromCore1()` function to ensure that the watchdog timer is reset and the system remains responsive.
+On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Core::Safety::feedWatchdogFromCore1()` function to ensure that the watchdog timer is reset and the system remains responsive.
 
 Note that the watchdog system requires both FreeRTOS and the main loop on core 1 to be running in order to function. If you require a lengthy setup process on either core that must block both cores at startup, consider initializing the watchdog system after the setup is complete; otherwise, the watchdog may trigger a reset during the setup phase. (This is also the reason why the watchdog initialization is not included in the main safety initialization function.)
 

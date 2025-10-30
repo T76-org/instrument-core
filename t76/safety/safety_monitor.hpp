@@ -17,7 +17,7 @@
 
 #include "t76/safety.hpp"
 
-namespace T76::Sys::SafetyMonitor {
+namespace T76::Core::SafetyMonitor {
 
     /**
      * @brief Run the Safety Monitor fault reporting mode
@@ -36,4 +36,4 @@ namespace T76::Sys::SafetyMonitor {
      */
     void runSafetyMonitor();
 
-} // namespace T76::Sys::SafetyMonitor
+} // namespace T76::Core::SafetyMonitor

@@ -39,7 +39,7 @@
 
 #pragma once
 
-namespace T76::Sys::Memory {
+namespace T76::Core::Memory {
     
     /**
      * @brief Initializes the memory allocation routines, which override

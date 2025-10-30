@@ -28,7 +28,7 @@
 #include "safety_private.hpp"
 
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     // === Consecutive fault reboot counter auto-reset (optional) ===
     // Implemented using a Pico SDK hardware alarm so it works even before
@@ -283,4 +283,4 @@ namespace T76::Sys::Safety {
 
     // No runtime setter; timeout is configured via T76_SAFETY_FAULTCOUNT_RESET_SECONDS.
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety

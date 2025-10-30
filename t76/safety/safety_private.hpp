@@ -74,7 +74,7 @@
 #define COMPONENT_REGISTRY_MAGIC 0x53414645
 
 
-namespace T76::Sys::Safety {
+namespace T76::Core::Safety {
 
     /**
      * @brief Stack information captured during fault
@@ -246,4 +246,4 @@ namespace T76::Sys::Safety {
 
 
 
-} // namespace T76::Sys::Safety
+} // namespace T76::Core::Safety

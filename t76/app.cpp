@@ -9,7 +9,7 @@
 #include "t76/app.hpp"
 
 
-using namespace T76::Sys;
+using namespace T76::Core;
 
 // Global instance pointer for Core 1 entry point access
 App *App::_globalInstance;
@@ -71,10 +71,10 @@ App::App() {
  */
 void App::run() {
     // Initialize safety system first on Core 0
-    T76::Sys::Safety::init();
+    T76::Core::Safety::init();
     
     // Initialize memory management system
-    T76::Sys::Memory::init();
+    T76::Core::Memory::init();
 
     // Perform application-specific initialization
     _init();
@@ -84,9 +84,9 @@ void App::run() {
     multicore_launch_core1(_core1EntryPoint);
 
     // Initialize dual-core watchdog system (must be done on Core 0)
-    if (!T76::Sys::Safety::watchdogInit()) {
+    if (!T76::Core::Safety::watchdogInit()) {
         // Handle watchdog initialization failure
-        T76::Sys::Safety::reportFault(T76::Sys::Safety::FaultType::HARDWARE_FAULT,
+        T76::Core::Safety::reportFault(T76::Core::Safety::FaultType::HARDWARE_FAULT,
                                      "Failed to initialize dual-core watchdog system",
                                      __FILE__, __LINE__, __FUNCTION__);
     }

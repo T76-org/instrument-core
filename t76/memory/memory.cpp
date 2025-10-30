@@ -23,7 +23,7 @@
 static void memoryServiceTask(void* pvParameters);
 #endif
 
-void T76::Sys::Memory::init() {
+void T76::Core::Memory::init() {
     #ifdef T76_USE_GLOBAL_LOCKS
         // Start memory service task on core 0 to handle core 1 requests
         xTaskCreate(memoryServiceTask, "MemSvc", 512, NULL, configMAX_PRIORITIES - 1, NULL);
