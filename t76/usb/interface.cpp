@@ -40,7 +40,7 @@ void Interface::init() {
         "USBRuntime", 
         T76_IC_USB_RUNTIME_TASK_STACK_SIZE, 
         this, 
-        T76_IC_USB_RUNTIME_TASK_PRIORITY, 
+        T76_IC_USB_RUNTIME_TASK_PRIORITY,
         &taskHandle
     );
 
@@ -55,9 +55,6 @@ void Interface::init() {
         T76_IC_USB_DISPATCH_TASK_PRIORITY, 
         &taskHandle
     );
-
-    board_init();
-    tusb_init();
 }
 
 void Interface::sendVendorBulkData(const std::vector<uint8_t> &data) {
@@ -118,15 +115,14 @@ void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
 }
 
 void Interface::_runtimeTask() {
-    static uint32_t lastTick = 0;
-
-    TickType_t currentTick = xTaskGetTickCount();
+    board_init();
+    tusb_init();
 
     for(;;) {
         tud_task();
         
         if (!tud_task_event_ready()) {
-            vTaskDelayUntil(&currentTick, T76_IC_USB_TASK_TICK_DELAY);
+            vTaskDelay(pdMS_TO_TICKS(T76_IC_USB_TASK_TICK_DELAY));
         }
     }
 }

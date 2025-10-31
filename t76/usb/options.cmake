@@ -6,7 +6,7 @@ set(T76_IC_USB_RUNTIME_TASK_PRIORITY 1 CACHE STRING "Priority for the USB runtim
 
 set(T76_IC_USB_DISPATCH_TASK_STACK_SIZE 256 CACHE STRING "Stack size for the USB dispatch task (in words)")
 set(T76_IC_USB_DISPATCH_TASK_PRIORITY 1 CACHE STRING "Priority for the USB dispatch task")
-set(T76_IC_USB_TASK_TICK_DELAY 10/portTICK_PERIOD_MS CACHE STRING "Delay (in ticks) for the USB task loop when idle")
+set(T76_IC_USB_TASK_TICK_DELAY 1 CACHE STRING "Delay (in ms) for the USB task loop when idle")
 
 set(T76_IC_USB_INTERFACE_BULK_IN_MAX_MESSAGE_SIZE 255 CACHE STRING "Maximum size of a single USB bulk IN message (in bytes)")
 

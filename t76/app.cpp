@@ -76,6 +76,9 @@ void App::run() {
     // Initialize memory management system
     T76::Core::Memory::init();
 
+    // Initialize USB interface
+    _usbInterface.init();
+
     // Perform application-specific initialization
     _init();
 
@@ -93,9 +96,6 @@ void App::run() {
 
     // Initialize Core 0
     _initCore0();
-
-    // Initialize USB interface
-    _usbInterface.init();
 
     // Start the FreeRTOS scheduler
     vTaskStartScheduler();

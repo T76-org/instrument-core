@@ -61,7 +61,7 @@ namespace T76::Core {
             // Main loop for TinyUSB task
             while (true) {
                 tud_task(); // tinyusb device task
-                vTaskDelay(10 / portTICK_PERIOD_MS);
+                vTaskDelay(pdMS_TO_TICKS(1));
             }
         }
 
@@ -187,11 +187,11 @@ namespace T76::Core {
                     for (uint32_t i = 0; i < Safety::gSharedFaultSystem->rebootCount && i < T76_SAFETY_MAX_REBOOTS; i++) {
                         printf("--- FAULT #%lu ---\n", i + 1);
                         printFaultInfoToConsole(Safety::gSharedFaultSystem->faultHistory[i]);
-                        vTaskDelay(T76_SAFETY_MONITOR_REPORT_INTERVAL_MS / portTICK_PERIOD_MS); // Wait between fault reports
+                        vTaskDelay(pdMS_TO_TICKS(T76_SAFETY_MONITOR_REPORT_INTERVAL_MS)); // Wait between fault reports
                     }
                 }
                 
-                vTaskDelay(T76_SAFETY_MONITOR_CYCLE_DELAY_MS / portTICK_PERIOD_MS); // Wait before repeating the cycle
+                vTaskDelay(pdMS_TO_TICKS(T76_SAFETY_MONITOR_CYCLE_DELAY_MS)); // Wait before repeating the cycle
             }
         }
 
