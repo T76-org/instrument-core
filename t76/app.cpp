@@ -76,6 +76,9 @@ void App::run() {
     // Initialize memory management system
     T76::Core::Memory::init();
 
+    // Initialize USB interface
+    _usbInterface.init();
+
     // Perform application-specific initialization
     _init();
 

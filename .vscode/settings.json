@@ -45,6 +45,7 @@
         "functional": "cpp",
         "text_encoding": "cpp",
         "typeinfo": "cpp",
-        "cstdlib": "cpp"
+        "cstdlib": "cpp",
+        "config.h": "c"
     }
 }

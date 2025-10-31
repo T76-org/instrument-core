@@ -113,35 +113,14 @@ protected:
             fputs(ptr, stdout);
             delete[] ptr;
 
-            // char *f = (char *)malloc(5000);
-            // f[0] = 0;
+            char *f = (char *)malloc(5000);
+            f[0] = 0;
 
-            if (count > 30) {
-                triggerMemManageFault();  // Trigger HardFault for testing
-            }
+            // if (count > 30) {
+            //     triggerMemManageFault();  // Trigger HardFault for testing
+            // }
             
-            vTaskDelay(100 / portTICK_PERIOD_MS);
-        }
-    }
-
-    /**
-     * @brief TinyUSB device task for USB functionality
-     * 
-     * This FreeRTOS task initializes the TinyUSB stack and continuously
-     * services USB device operations by calling tud_task(). Required for
-     * USB device functionality including CDC (serial over USB) support.
-     * 
-     * @note Runs on Core 0 as a FreeRTOS task
-     * @note Runs every 10ms to ensure responsive USB handling
-     */
-    void _tusbTask() {
-        // Initialize TinyUSB
-        tusb_init();
-
-        // Main loop for TinyUSB task
-        while (true) {
-            tud_task(); // tinyusb device task
-            vTaskDelay(10 / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
 
@@ -178,18 +157,6 @@ protected:
         xTaskCreate(
             [](void *param) {
                 App *app = static_cast<App*>(param);
-                app->_tusbTask();
-            },
-            "tusb",
-            256,
-            this,
-            1,
-            NULL
-        );
-
-        xTaskCreate(
-            [](void *param) {
-                App *app = static_cast<App*>(param);
                 app->_printTask();
             },
             "print",
@@ -219,16 +186,14 @@ protected:
      */
     virtual void _startCore1() override {
         int count = 0;
+        char ptr[100];
 
         while (true) {
             // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
             T76::Core::Safety::feedWatchdogFromCore1();
             
-            // Your application code here
-            char *ptr = static_cast<char*>(malloc(320));
             snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
             fputs(ptr, stdout);
-            free(ptr);
             status_led_set_state(!status_led_get_state());
             
             sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)
