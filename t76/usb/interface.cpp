@@ -122,7 +122,7 @@ void Interface::_runtimeTask() {
         tud_task();
         
         if (!tud_task_event_ready()) {
-            vTaskDelay(pdMS_TO_TICKS(T76_IC_USB_TASK_TICK_DELAY));
+            vTaskDelay(pdMS_TO_TICKS(T76_IC_USB_TASK_DELAY_MS));
         }
     }
 }

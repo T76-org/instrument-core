@@ -105,7 +105,7 @@ The memory management system can be configured by changing the `T76_USE_GLOBAL_L
 
 At startup, the memory management system must be initialized by calling the `T76::Core::Memory::init()` function. This function sets up the necessary data structures and starts the memory service task if global locks are enabled.
 
-# Safety features
+## Safety features
 
 The T76 Instrument Core includes a robust safety system designed to handle faults and ensure the instrument operates reliably. The safety system provides mechanisms for fault detection, logging, and recovery, allowing the instrument to enter a safe mode in the event of critical errors.
 
@@ -131,7 +131,7 @@ On core 1, bare-metal critical tasks must also ensure that they remain responsiv
 
 The safety system provides a safing mechanism that puts the instrument into a safe state when a critical fault occurs. In safe mode, the instrument disables non-essential functions and enters a low-power state, allowing for safe recovery and troubleshooting.
 
-## Including and using the safety system
+### Including and using the safety system
 
 You can add the `t76_safety` library to your project to enable the safety system, and include `<t76/safety.hpp>` to your source code.
 
@@ -161,7 +161,7 @@ The library provides a comprehensive list of settings that can be used to alter 
 - `T76_SAFETY_MONITOR_REPORT_INTERVAL_MS` - Interval between fault reports in milliseconds
 - `T76_SAFETY_MONITOR_CYCLE_DELAY_MS` - Delay between fault reporting cycles in milliseconds
 
-## Triggering faults
+### Triggering faults
 
 While the system catches system-level faults automatically, developers can also trigger custom faults using the `T76::Core::Safety::reportFault()` function. This function allows you to specify the fault type, location, and additional context information.
 
@@ -192,7 +192,7 @@ When `abort()` is called, the safety system will log the fault with complete dia
 
 **Note:** If you call `abort()` without including `safety.hpp`, it will use the standard library version and will not capture location information, falling back to a hardfault. The system will still enter safe mode, but without the detailed diagnostics.
 
-## Fault recovery and reboot limiting
+### Fault recovery and reboot limiting
 
 The safety system implements a reboot limiting mechanism to prevent continuous reboot loops in the event of persistent faults. The maximum number of consecutive reboots allowed before entering safety monitor mode can be configured using the `T76_SAFETY_MAX_REBOOTS` setting.
 
@@ -200,7 +200,7 @@ After the appropriate number of reboots, the system implements a lockout mechani
 
 After a successful, stable runtime without faults, the reboot counter can be automatically reset after a configurable period. This period can be set using the `T76_SAFETY_FAULTCOUNT_RESET_SECONDS` setting. If set to `0`, the auto-reset feature is disabled.
 
-## System safing and startup sequence
+### System safing and startup sequence
 
 When a critical fault occurs, a reboot is not sufficient to ensure safety, since external devices may still be powered and operating in an unsafe manner. In addition, it is important to bring up the system in a known safe state before attempting normal operation; after all, the failure of a single component should not compromise the safety of the entire instrument.
 
@@ -220,11 +220,44 @@ Note that the system makes no guarantees about the order in which components are
 
 Finally, because the system uses statically allocated memory to manage the list of registered components, there is a maximum number of components that can be registered. This limit can be configured using the `T76_SAFETY_MAX_REGISTERED_COMPONENTS` macro in the `safety_private.hpp` file.
 
-## Dual-core watchdog initialization
+### Dual-core watchdog initialization
 
 If enabled, the watchdog system must be initialized at startup by calling the `T76::Core::Safety::watchdogInit()` function from core 0. This function sets up the hardware watchdog timer and starts the watchdog feeding task. 
 
 On core 1, bare-metal critical tasks must periodically signal the watchdog feeding task on core 0 by calling the `T76::Core::Safety::feedWatchdogFromCore1()` function to ensure that the watchdog timer is reset and the system remains responsive.
 
 Note that the watchdog system requires both FreeRTOS and the main loop on core 1 to be running in order to function. If you require a lengthy setup process on either core that must block both cores at startup, consider initializing the watchdog system after the setup is complete; otherwise, the watchdog may trigger a reset during the setup phase. (This is also the reason why the watchdog initialization is not included in the main safety initialization function.)
+
+## USB Interface
+
+The IC provides a custom USB interface that supports multiple USB classes:
+
+- USBCDC (Communications Device Class) for serial communication
+- USBTMC (Test and Measurement Class) for SCPI command handling
+- A vendor class for optional custom functionality and support for Pi Pico's built-in reset functionality
+
+The interface uses TinyUSB as the underlying USB stack, and is designed to provide the same functionality as the standard Pico SDK CDC interface, while adding support for USBTMC, which can then be used to implement SCPI command handling.
+
+### Including and using the USB interface
+
+The interface is already built into the application template, and as such you do not need to do anything special to include it in your project. If you are not using the application template, you can add the `t76_ic_usb` library to your project and add `<t76/usb_interface.hpp>` to your source code.
+
+### Configuration
+
+The USB interface can be configured by changing the following CMake variables in your project's configuration files or build system:
+
+- `T76_IC_USB_INTERFACE_BULK_IN_QUEUE_SIZE` - Size of the bulk IN queue for USB interface (number of messages)
+- `T76_IC_USB_RUNTIME_TASK_STACK_SIZE` - Stack size for the USB runtime task (in words)
+- `T76_IC_USB_RUNTIME_TASK_PRIORITY` - Priority for the USB runtime task
+- `T76_IC_USB_DISPATCH_TASK_STACK_SIZE` - Stack size for the USB dispatch task (in words)
+- `T76_IC_USB_DISPATCH_TASK_PRIORITY` - Priority for the USB dispatch task
+- `T76_IC_USB_TASK_DELAY_MS` - Delay (in ms) for the USB task loop when idle
+- `T76_IC_USB_INTERFACE_BULK_IN_MAX_MESSAGE_SIZE` - Maximum size of a single USB bulk IN message (in bytes)
+- `T76_IC_USB_URL` - URL string for the USB WebUSB descriptor
+- `T76_IC_USB_VENDOR_ID` - USB Vendor ID
+- `T76_IC_USB_PRODUCT_ID` - USB Product ID
+- `T76_IC_USB_MANUFACTURER_STRING` - USB Manufacturer String
+- `T76_IC_USB_PRODUCT_STRING` - USB Product String
+
+This allows to completely customize the interface to suit your specific application needs, including changing the way it appears to the host system. Note, however, that the reboot functionality relies on the use of the Pi Pico's built-in USB vendor class, so if you change the vendor ID or product ID, you may need to implement your own reboot mechanism.
 
