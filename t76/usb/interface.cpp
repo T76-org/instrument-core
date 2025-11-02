@@ -90,6 +90,16 @@ void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {
     _usbtmcBulkInDataQueue.push(data);
 }
 
+void Interface::sendUSBTMCBulkData(std::string data, bool addNewline) {
+    std::vector<uint8_t> byteData(data.begin(), data.end());
+
+    if (addNewline) {
+        byteData.push_back('\n');
+    }
+
+    _usbtmcBulkInDataQueue.push(byteData);
+}
+
 void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     _usbtmcSRQInterruptData.bNotify1 = USB488_bNOTIFY1_SRQ;
     _usbtmcSRQInterruptData.StatusByte = srq;

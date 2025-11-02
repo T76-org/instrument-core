@@ -102,6 +102,7 @@
 #include <memory>
 #include <queue>
 #include <stdint.h>
+#include <string>
 #include <vector>
 
 #include <FreeRTOS.h>
@@ -277,6 +278,17 @@ namespace T76::Core::USB {
          * transfer operation is queued and processed in the USB dispatch task.
          */
         void sendUSBTMCBulkData(const std::vector<uint8_t> &data);
+
+        /**
+         * @brief Send USBTMC bulk data to the USB host.
+         * @param data The data to be sent as a string. The function will convert
+         *             the string to a byte array and send it asynchronously.
+         * @param addNewline Whether to add a newline at the end of the data.
+         * 
+         * This method is thread-safe and can be called from any thread. The data
+         * transfer operation is queued and processed in the USB dispatch task.
+         */
+        void sendUSBTMCBulkData(std::string data, bool addNewline = true);
 
         /**
          * @brief Send a USBTMC SRQ interrupt to the USB host.

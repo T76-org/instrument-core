@@ -31,12 +31,7 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
 }
 
 void App::_queryIDN(const std::vector<T76::SCPI::ParameterValue> &params) {
-    // printf("Sending response\n");
-    // interpreter.outputStream.write("MTA,T76-Device,123456,1.0\n", true);
-        std::string response = "Hello there\n";
-        std::vector<uint8_t> data(response.begin(), response.end());
-        _usbInterface.sendUSBTMCBulkData(data);
-
+    _usbInterface.sendUSBTMCBulkData("Hello world");
 }
 
 bool App::activate() {
