@@ -27,7 +27,7 @@ namespace T76::SCPI {
     class ConcreteInterpreter; // Forward declaration of ConcreteInterpreter class
 
     template <typename TargetT>
-    using CommandHandler = void (TargetT::*)(const std::vector<ParameterValue> &, Interpreter<TargetT> &);
+    using CommandHandler = void (TargetT::*)(const std::vector<ParameterValue> &);
 
     template <typename TargetT>
     struct Command {

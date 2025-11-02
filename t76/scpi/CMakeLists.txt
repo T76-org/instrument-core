@@ -30,8 +30,6 @@ add_custom_target(
 
 # Include SCPI library files into the firmware target
 set(SCPI_SOURCES
-    ${T76_SCPI_OUTPUT_FILE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/stream.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/trie.cpp
 )
 
@@ -39,7 +37,6 @@ set(SCPI_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/t76/scpi_command.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/t76/scpi_interpreter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/t76/scpi_parameter.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/t76/scpi_stream.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/t76/scpi_trie.hpp
 )
 

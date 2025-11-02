@@ -21,9 +21,7 @@
  * that is traversed as data is fed into it one character at a time by a call to 
  * processInputCharacter(). The interpreter will parse the command 
  * and its parameters, and then call the appropriate command handler with 
- * the parsed parameters. Handlers can then use the `Interpreter` instance
- * to write output to its `_outputStream` property, which is a concrete subclass
- * of `OutputStreamBase`. 
+ * the parsed parameters. 
  * 
  * Errors can be reported by calling the `addError` method. You will need to 
  * add a `SYSTem:ERROR?` command to your command set to retrieve errors and
@@ -47,7 +45,6 @@
 #include <string>
 #include <strings.h>
 
-#include "scpi_stream.hpp"
 #include "scpi_trie.hpp"
 #include "scpi_command.hpp"
 
@@ -74,20 +71,17 @@ namespace T76::SCPI {
     template<typename TargetT>
     class Interpreter {
     public:
-        OutputStreamBase &outputStream; // Reference to the output stream for writing responses.
         std::queue<std::string> errorQueue; // Queue to store error messages.
 
         /**
          * @brief Constructor for the SCPI interpreter.
          * 
-         * Initializes the interpreter with the provided input and output streams.
+         * Initializes the interpreter with the specified target for command execution.
          * 
-         * @param input Reference to the input stream for reading commands.
-         * @param output Reference to the output stream for writing responses.
          * @param target Reference to the target interpreter implementation.
          * @param abdMaxSize Maximum allowed size for ABD (Arbitrary Data Block) parameters in bytes. Default is 256 bytes.
          */
-        Interpreter(OutputStreamBase &output, TargetT &target, size_t abdMaxSize = 256);
+        Interpreter(TargetT &target, size_t abdMaxSize = 256);
 
         /**
          * @brief Get the maximum number of parameters allowed for commands.
@@ -115,6 +109,25 @@ namespace T76::SCPI {
          * 
          */
         void reset();
+
+        /**
+         * @brief Formats a string for output.
+         * 
+         * @param str 
+         * @return std::string The formatted string.
+         * 
+         * Adds leading and training quotation marks, and escapes any
+         * quotation marks within the string.
+         */
+        std::string formatString(const std::string &str) const;
+
+        /**
+         * @brief Generates the preamble for an Arbitrary Data Block (ABD).
+         * 
+         * @param size The size of the ABD data block.
+         * @return std::string The formatted ABD preamble.
+         */
+        std::string abdPreamble(size_t size) const;
 
         /**
          * @brief Add an error to the error queue.
@@ -224,8 +237,7 @@ namespace T76::SCPI {
 
     // Template implementation
     template<typename TargetT>
-    Interpreter<TargetT>::Interpreter(OutputStreamBase &output, TargetT &target, size_t abdMaxSize)
-        : outputStream(output),
+    Interpreter<TargetT>::Interpreter(TargetT &target, size_t abdMaxSize) :
           _target(target),
           _abdMaxSize(abdMaxSize) {
         _resetState();
@@ -235,6 +247,37 @@ namespace T76::SCPI {
     void Interpreter<TargetT>::reset() {
         _resetState();
         errorQueue = std::queue<std::string>(); // Clear the error queue
+    }
+
+    template<typename TargetT>
+    std::string Interpreter<TargetT>::formatString(const std::string &str) const {
+        // Format a string for output with quotes and escaped quotes
+        std::string formatted = "\"";
+
+        for (char c : str) {
+            if (c == '"') {
+                formatted += "\\\""; // Escape double quotes
+            } else {
+                formatted += c;
+            }
+        }
+
+        formatted += "\"";
+        
+        return formatted;
+    }
+
+    template<typename TargetT>
+    std::string Interpreter<TargetT>::abdPreamble(size_t size) const {
+        // Generate the ABD preamble for a given size
+        std::string sizeStr = std::to_string(size);
+        size_t numDigits = sizeStr.length();
+
+        std::string preamble = "#";
+        preamble += std::to_string(numDigits);
+        preamble += sizeStr;
+
+        return preamble;
     }
 
     template<typename TargetT>
@@ -390,7 +433,7 @@ namespace T76::SCPI {
     template<typename TargetT>
     void Interpreter<TargetT>::addError(int errorNumber, const std::string &errorString) {
         // Add an error to the error queue
-        errorQueue.push(std::to_string(errorNumber) + "," + outputStream.formatString(errorString));
+        errorQueue.push(std::to_string(errorNumber) + "," + formatString(errorString));
     }
 
     template<typename TargetT>
@@ -457,8 +500,7 @@ namespace T76::SCPI {
                 }
             }
 
-            // Execute the command with the parsed parameters
-            (_target.*command.handler)(parsedParameters, *this);
+            (_target.*command.handler)(parsedParameters);
 
         } else if (_currentNode == &_trie) {
             // No command was entered (empty input), do nothing

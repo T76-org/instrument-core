@@ -13,14 +13,14 @@
 namespace T76 {
     class App {
     public:
-        void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &, T76::SCPI::Interpreter<T76::App> &);
+        void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &);
     };
 }
 
 namespace T76::SCPI {
 
 /*
- * Memory Usage Estimate for RP2040:
+ * Memory Usage Estimate:
  * 
  * Trie Structure:
  *   - Total nodes: 6
@@ -35,7 +35,7 @@ namespace T76::SCPI {
  * 
  * Total Memory Usage:
  *   - Code/Data (Flash): 60 bytes (0.00% of 2MB)
- *   - Runtime (SRAM): 64 bytes (0.02% of 264KB)
+ *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
  *   - Average lookup depth: ~5.0 character comparisons

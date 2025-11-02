@@ -225,7 +225,7 @@ namespace T76::Core::USB {
         /**
          * @brief Constructor for the USB interface.
          */
-        Interface();
+        Interface(InterfaceDelegate &delegate);
         
         /**
          * @brief Virtual destructor to allow safe subclass cleanup.
@@ -285,29 +285,12 @@ namespace T76::Core::USB {
          */
         void sendUSBTMCSRQInterrupt(const uint8_t srq);
 
-        /**
-         * @brief Assign a delegate to receive interface callbacks.
-         * 
-         * The provided delegate is retained as a shared pointer. Pass a null
-         * pointer to remove the current delegate.
-         * 
-         * @param delegate Shared pointer to the delegate implementation.
-         */
-        void delegate(std::shared_ptr<InterfaceDelegate> delegate);
-
-        /**
-         * @brief Retrieve the currently assigned delegate.
-         * 
-         * @return Shared pointer to the active delegate, or nullptr if unset.
-         */
-        std::shared_ptr<InterfaceDelegate> delegate();
-
     protected:
 
         /**
          * @brief Registered delegate that receives interface callbacks.
          */
-        std::shared_ptr<InterfaceDelegate> _delegate;
+        InterfaceDelegate &_delegate;
 
         /**
          * @brief The type of an item sent to the dispatch queue.

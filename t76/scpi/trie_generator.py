@@ -13,12 +13,17 @@ For information on the expected YAML format, refer to the documentation or the e
 
 import argparse
 import re
+import sys
 
 from dataclasses import dataclass
 from itertools import product
 from typing import Any, List, Optional
 
-import yaml
+try:
+    import yaml
+except ImportError:
+    print("PyYAML is required. Install it with: pip install PyYAML")
+    sys.exit(1)
 
 
 @dataclass
@@ -466,7 +471,7 @@ class SCPITrie:
         for command in scpi_definition.commands:
             if command.handler:
                 handler_name = command.handler
-                code += f"        void {handler_name}(const std::vector<T76::SCPI::ParameterValue> &, T76::SCPI::Interpreter<{scpi_definition.namespace}::{scpi_definition.class_name}> &);\n"
+                code += f"        void {handler_name}(const std::vector<T76::SCPI::ParameterValue> &);\n"
 
         code += "    };\n"
         code += "}\n\n"
@@ -583,11 +588,11 @@ class SCPITrie:
         return "} // namespace\n"
 
     def calculate_memory_usage(self, scpi_definition: SCPIDefinition) -> dict:
-        """Calculate memory usage estimates for RP2040."""
-        # RP2040 memory characteristics
-        rp2040_specs = {
-            'total_flash': 2 * 1024 * 1024,  # 2MB flash
-            'total_sram': 264 * 1024,        # 264KB SRAM
+        """Calculate memory usage estimates."""
+        # RP2350 memory characteristics
+        rp2350_specs = {
+            'total_flash': 4 * 1024 * 1024,  # 4MB flash
+            'total_sram': 520 * 1024,        # 520KB SRAM
             'pointer_size': 4,               # 32-bit pointers
             'char_size': 1,                  # 8-bit chars
             'uint8_size': 1                  # 8-bit integers
@@ -659,7 +664,7 @@ class SCPITrie:
         runtime_memory = 64  # Conservative estimate for interpreter state
 
         return {
-            'rp2040_specs': rp2040_specs,
+            'rp2350_specs': rp2350_specs,
             'trie_stats': {
                 'total_nodes': total_nodes,
                 'total_arrays': total_arrays,
@@ -675,8 +680,8 @@ class SCPITrie:
                 'runtime_sram': runtime_memory
             },
             'utilization': {
-                'flash_percent': (code_memory / rp2040_specs['total_flash']) * 100,
-                'sram_percent': (runtime_memory / rp2040_specs['total_sram']) * 100
+                'flash_percent': (code_memory / rp2350_specs['total_flash']) * 100,
+                'sram_percent': (runtime_memory / rp2350_specs['total_sram']) * 100
             }
         }
 
@@ -685,7 +690,7 @@ class SCPITrie:
         memory_usage = self.calculate_memory_usage(scpi_definition)
 
         comment = f"""/*
- * Memory Usage Estimate for RP2040:
+ * Memory Usage Estimate:
  * 
  * Trie Structure:
  *   - Total nodes: {memory_usage['trie_stats']['total_nodes']}
@@ -782,7 +787,7 @@ if __name__ == "__main__":
         print(f"Terminal nodes: {terminal_nodes}")
 
         # Print memory usage information
-        print("\nRP2040 Memory Usage Estimate:")
+        print("\nMemory Usage Estimate:")
         print("=" * 50)
         usage = trie.calculate_memory_usage(definition)
 

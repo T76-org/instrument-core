@@ -42,6 +42,7 @@ pico_sdk_init()
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(t76-instrument-core 
+        app.cpp
         main.cpp
         freertos/rp2350.c
         scpi_commands.cpp

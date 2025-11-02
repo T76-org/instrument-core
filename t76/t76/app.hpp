@@ -70,7 +70,7 @@ namespace T76::Core {
      * Derived classes may optionally override:
      * - _init(): Early initialization before core launch
      */
-    class App : public T76::Core::Safety::SafeableComponent {
+    class App : public T76::Core::Safety::SafeableComponent, T76::Core::USB::InterfaceDelegate {
     public:
         /**
          * @brief Construct the App and register as the global singleton instance
@@ -183,6 +183,45 @@ namespace T76::Core {
          * @note Watchdog protection is active when this is called
          */
         virtual void _startCore1() = 0;
+
+        /**
+         * @brief Called when data is received on the vendor USB interface's
+         *        bulk endpoint
+         * 
+         * @param data The data received
+         */
+        virtual void _onVendorDataReceived(const std::vector<uint8_t> &data) override {};
+
+        /**
+         * @brief Called when a control transfer IN request is received on the 
+         *        vendor USB's control endpoint. This signals that the host
+         *        is ready to receive data from us.
+         * 
+         * @param port The port of the request
+         * @param request A pointer to the request structure
+         * @return true If the request was successfully handled
+         */
+        virtual bool _onVendorControlTransferIn(uint8_t port, const tusb_control_request_t *request) override { return false; }
+
+        /**
+         * @brief Called when a control transfer OUT request is received on the 
+         *        vendor USB's control endpoint. This signals that the host has
+         *        sent us data.
+         * 
+         * @param port The port of the request
+         * @param value The value associated with the request
+         * @param data The data that was sent along with the request
+         * @return true If the request was successfully handled
+         */
+        virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) override { return false; }
+
+        /**
+         * @brief Called when data is received on the USBTMC interface's bulk endpoint
+         * 
+         * @param data The data received
+         * @param transfer_complete Whether the transfer is complete
+         */
+        virtual void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) override { }
     };
     
 } // namespace T76::Core

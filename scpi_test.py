@@ -6,7 +6,7 @@ print(pyvisa.ResourceManager().list_resources())
 
 resource_string = "USB0::0x2E8A::0x000A::7913911B4CB0B01C::4::INSTR"
 r = pyvisa.ResourceManager().open_resource(resource_string)
-result = r.query_ascii_values("*?IDN", "s")
+result = r.query_ascii_values("*IDN?", "s")
 print(result)
 
 # Find all USB devices

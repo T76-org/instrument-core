@@ -21,7 +21,7 @@ App *App::_globalInstance;
  * trampoline to access the instance methods. Only one App instance should
  * be created in the application lifetime.
  */
-App::App() {
+App::App() : _usbInterface(*this) {
     _globalInstance = this;
 }
 
