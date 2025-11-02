@@ -1,0 +1,205 @@
+class_name: ConcreteInterpreter
+namespace: T76::SCPI
+output_file: test_commands.cpp
+
+commands:
+  # Basic commands without parameters
+
+  - syntax:       "TEST:SIMPLE"
+    description:  "Simple test command without parameters."
+    handler:      _testSimple
+
+  - syntax:       "TEST:SIMPLE?"
+    description:  "Simple test query command."
+    handler:      _queryTestSimple
+
+  - syntax:       "TEST:COMmand:OPTional:SYNtax"
+    description:  "Test command with optional syntax elements."
+    handler:      _testMixedCase
+
+  # Commands with single parameters of different types
+
+  - syntax:       "TEST:ABD:SIMPLE"
+    parameters:
+      - name: "data"
+        type: "arbitrarydata"
+        description: "Arbitrary data block parameter."
+    description:  "Test command with an arbitrary data block parameter."
+    handler:      _testABDSimple
+
+  - syntax:       "TEST:NUMBER"
+    parameters:
+      - name: "value"
+        type: "number"
+        description: "A numeric parameter."
+    description:  "Test command with a number parameter."
+    handler:      _testNumber
+
+  - syntax:       "TEST:STRING"
+    parameters:
+      - name: "text"
+        type: "string"
+        description: "A string parameter."
+    description:  "Test command with a string parameter."
+    handler:      _testString
+
+  - syntax:       "TEST:BOOLEAN"
+    parameters:
+      - name: "state"
+        type: "boolean"
+        description: "A boolean parameter."
+    description:  "Test command with a boolean parameter."
+    handler:      _testBoolean
+
+  - syntax:       "TEST:ENUM"
+    parameters:
+      - name: "option"
+        type: "enum"
+        description: "An enumerated parameter."
+        choices: ["OPTION1", "OPTION2", "OPTION3", "DEFAULT"]
+    description:  "Test command with an enum parameter."
+    handler:      _testEnum
+
+  # Commands with multiple parameters
+
+  - syntax:       "TEST:MULTI:TWO"
+    parameters:
+      - name: "first"
+        type: "number"
+        description: "First parameter."
+      - name: "second"
+        type: "string"
+        description: "Second parameter."
+    description:  "Test command with two parameters."
+    handler:      _testMultiTwo
+
+  # Commands with optional parameters
+
+  - syntax:       "TEST:OPTIONAL:SINGLE"
+    parameters:
+      - name: "required"
+        type: "number"
+        description: "Required parameter."
+      - name: "optional"
+        type: "string"
+        description: "Optional parameter."
+        optional: true
+    description:  "Test command with one optional parameter."
+    handler:      _testOptionalSingle
+
+  - syntax:       "TEST:OPTIONAL:MULTIPLE"
+    parameters:
+      - name: "required"
+        type: "number"
+        description: "Required parameter."
+      - name: "optional1"
+        type: "string"
+        description: "First optional parameter."
+        optional: true
+      - name: "optional2"
+        type: "enum"
+        description: "Second optional parameter."
+        choices: ["RED", "GREEN", "BLUE"]
+        optional: true
+    description:  "Test command with multiple optional parameters."
+    handler:      _testOptionalMultiple
+
+  # Numeric parameter variations
+
+  - syntax:       "TEST:NUMERIC:INTEGER"
+    parameters:
+      - name: "value"
+        type: "number"
+        description: "Integer value."
+    description:  "Test command with integer parameter."
+    handler:      _testInteger
+
+  - syntax:       "TEST:NUMERIC:FLOAT"
+    parameters:
+      - name: "value"
+        type: "number"
+        description: "Floating point value."
+    description:  "Test command with float parameter."
+    handler:      _testFloat
+
+  - syntax:       "TEST:NUMERIC:RANGE"
+    parameters:
+      - name: "min"
+        type: "number"
+        description: "Minimum value."
+      - name: "max"
+        type: "number"
+        description: "Maximum value."
+    description:  "Test command with range parameters."
+    handler:      _testRange
+
+  # String parameter variations
+
+  - syntax:       "TEST:STRING:QUOTED"
+    parameters:
+      - name: "text"
+        type: "string"
+        description: "Quoted string parameter."
+    description:  "Test command with quoted string."
+    handler:      _testQuotedString
+
+  - syntax:       "TEST:ENUM:MIXED"
+    parameters:
+      - name: "option"
+        type: "enum"
+        description: "Mixed case enum options."
+        choices: ["CamelCase", "snake_case", "UPPERCASE", "lowercase"]
+    description:  "Test command with mixed case enum options."
+    handler:      _testEnumMixed
+
+  - syntax:       "TEST:ENUM:NUMERIC"
+    parameters:
+      - name: "option"
+        type: "enum"
+        description: "Enum with numeric-like options."
+        choices: ["OPTION1", "OPTION2", "OPTION10", "OPTION100"]
+    description:  "Test command with numeric-like enum options."
+    handler:      _testEnumNumeric
+
+  # Query commands with parameters
+
+  - syntax:       "TEST:QUERY:PARAM?"
+    parameters:
+      - name: "channel"
+        type: "number"
+        description: "Channel to query."
+    description:  "Test query command with parameter."
+    handler:      _queryTestParam
+
+  - syntax:       "TEST:QUERY:MULTI?"
+    parameters:
+      - name: "channel"
+        type: "number"
+        description: "Channel to query."
+      - name: "type"
+        type: "enum"
+        description: "Type of query."
+        choices: ["VOLTAGE", "CURRENT", "POWER", "STATUS"]
+    description:  "Test query command with multiple parameters."
+    handler:      _queryTestMulti
+
+  # Error handling test commands
+
+  - syntax:       "TEST:ERROR:SIMULATE"
+    parameters:
+      - name: "error_code"
+        type: "number"
+        description: "Error code to simulate."
+    description:  "Simulate an error condition."
+    handler:      _testErrorSimulate
+
+  - syntax:       "TEST:ERROR:INVALID"
+    description:  "Command that always returns an error."
+    handler:      _testErrorInvalid
+
+  # System error query command
+
+  - syntax:       "SYSTEM:ERROR?"
+    description:  "Query the last system error."
+    handler:      _querySystemError
+

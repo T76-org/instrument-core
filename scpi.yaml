@@ -1,0 +1,35 @@
+# Copyright (c) 2025 MTA, Inc.
+#
+# This file defines all the SCPI commands recognized by the interpreter.
+# It should generally include both standard SCPI commands like those prescribed by
+# IEEE 488.2, and custom commands specific to the instrument.
+#
+# A command definition consists of the following components:
+# - `syntax`: The SCPI command syntax. The entire hierarchical path should be
+#   included, starting with the command name and including all subcommands.
+#   Optional portions of a command path element can be indicated in lowercase.
+# - `description`: A brief description of what the command does. This is not
+#   included in the generated code, but is used for documentation purposes.
+# - `handler`: The name of the function that will handle the command when it is
+#   executed. This function should be defined in the concrete interpreter class.
+# - `parameters`: An optional list of parameters that the command accepts.
+#   Each parameter should have a `name`, `type`, and `description`. The `type`
+#   can be a simple type like `number` or `string`, or an `enum` type with a list of
+#   possible values. A parameter can be marked as optional by providing a
+#   `default` value. Note that all optional parameters must be terminal, or
+#   the command will not be recognized correctly.
+#
+# This file is processed by the `trie_generator.py` script to generate the
+# data structures required by the SCPI interpreter.
+
+class_name: App
+namespace: T76
+output_file: scpi_commands.cpp
+
+commands:
+  # Default SCPI commands
+
+  - syntax:       "*IDN?"
+    description:  "Query the instrument identification string."
+    handler:      _queryIDN
+

@@ -1,0 +1,34 @@
+# Build directory (contains only generated artifacts)
+build/
+
+# CMake build artifacts that might be generated
+*.o
+*.so
+*.exe
+*.out
+*.log
+.cmake/
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+DartConfiguration.tcl
+
+# Build artifacts from different generators
+*.vcxproj*
+*.sln
+*.dir/
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

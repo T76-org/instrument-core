@@ -46,6 +46,8 @@
         "text_encoding": "cpp",
         "typeinfo": "cpp",
         "cstdlib": "cpp",
-        "config.h": "c"
+        "config.h": "c",
+        "string": "cpp",
+        "format": "cpp"
     }
 }

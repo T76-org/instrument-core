@@ -47,10 +47,10 @@ target_compile_definitions(${LIBRARY_NAME} PUBLIC
 target_link_libraries(${LIBRARY_NAME} PUBLIC
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    pico_stdio_usb
-    pico_stdlib
     tinyusb_device 
     tinyusb_board
+    pico_stdio_usb
+    pico_stdlib
     t76_ic_utils
 )
 

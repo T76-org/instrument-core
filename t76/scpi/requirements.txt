@@ -1,0 +1,2 @@
+# Python dependencies for trie_generator.py
+PyYAML

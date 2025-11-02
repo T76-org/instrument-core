@@ -114,6 +114,14 @@ void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     }
 }
 
+void Interface::delegate(std::shared_ptr<InterfaceDelegate> delegate) {
+    _delegate = delegate;
+}
+
+std::shared_ptr<InterfaceDelegate> Interface::delegate() {
+    return _delegate;
+}
+
 void Interface::_runtimeTask() {
     board_init();
     tusb_init();
@@ -134,7 +142,9 @@ void Interface::_dispatchTask() {
         if (xQueueReceive(_dispatchQueue, &item, portMAX_DELAY) == pdTRUE) {
             switch (item->type) {
                 case DispatchType::DataReceived:
-                    _onVendorDataReceived(item->data);
+                    if (_delegate) {
+                        _delegate->_onVendorDataReceived(item->data);
+                    }
                     break;
 
                 case DispatchType::SendData: {
@@ -223,12 +233,21 @@ bool Interface::_vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb
                 return tud_control_xfer(rhport, request, _vendorControlDataInBuffer.data(), _vendorControlDataInBuffer.size());
             }
             
-            return _onVendorControlTransferIn(rhport, request);
+            if (_delegate) {
+                return _delegate->_onVendorControlTransferIn(rhport, request);
+            }
+
+            return false;
+
 
         case CONTROL_STAGE_DATA:
 
             if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
-                return _onVendorControlTransferOut(request->bRequest, request->wValue, std::vector<uint8_t>(_vendorControlDataInBuffer.begin(), _vendorControlDataInBuffer.begin() + request->wLength));
+                if (_delegate) {
+                    return _delegate->_onVendorControlTransferOut(request->bRequest, request->wValue, std::vector<uint8_t>(_vendorControlDataInBuffer.begin(), _vendorControlDataInBuffer.begin() + request->wLength));
+                }
+
+                return false;
             }
 
             break;
@@ -273,7 +292,9 @@ bool Interface::_usbtmcMsgData(void *data, size_t len, bool transfer_complete) {
         return false; // Data too large
     }
 
-    _onUSBTMCDataReceived(std::vector<uint8_t>(static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + len), transfer_complete);
+    if (_delegate) {
+        _delegate->_onUSBTMCDataReceived(std::vector<uint8_t>(static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + len), transfer_complete);
+    }
     
     tud_usbtmc_start_bus_read(); // Start reading from the USBTMC bus
 
