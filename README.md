@@ -261,3 +261,231 @@ The USB interface can be configured by changing the following CMake variables in
 
 This allows to completely customize the interface to suit your specific application needs, including changing the way it appears to the host system. Note, however, that the reboot functionality relies on the use of the Pi Pico's built-in USB vendor class, so if you change the vendor ID or product ID, you may need to implement your own reboot mechanism.
 
+## SCPI Command Interface
+
+The IC provides a complete SCPI (Standard Commands for Programmable Instruments) command interpreter that allows you to implement industry-standard instrument control over USBTMC. The SCPI system uses a declarative YAML-based approach for defining commands, with automatic code generation for efficient command parsing and execution.
+
+### Overview
+
+The SCPI interpreter uses a trie data structure for efficient command parsing and supports:
+
+- Hierarchical command structures with optional portions (e.g., `LED:STATe` can be entered as `LED:STAT`)
+- Multiple parameter types: strings, numbers, booleans, enums, and arbitrary binary data blocks
+- Optional parameters with default values
+- Automatic parameter validation (type and count checking)
+- Query commands (ending with `?`)
+- Standard IEEE 488.2 commands (like `*IDN?` and `*RST`)
+- Error queue management
+
+### Adding SCPI to Your Project
+
+#### Step 1: Define Your Commands in YAML
+
+Create a YAML file (typically named `scpi.yaml`) that defines all the SCPI commands your instrument will support. Here's the structure:
+
+```yaml
+class_name: App              # Your application class name
+namespace: T76               # Your namespace
+output_file: scpi_commands.cpp  # Generated C++ file name
+
+commands:
+  - syntax:       "*IDN?"
+    description:  "Query the instrument identification string."
+    handler:      _queryIDN
+
+  - syntax:       "*RST"
+    description:  "Reset the instrument to its power-on state."
+    handler:      _resetInstrument
+
+  - syntax:       "LED:STATe"
+    description:  "Set the status of the instrument's LED."
+    handler:      _setLEDState
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF", "BLINK"]
+        description: "The desired LED state."
+
+  - syntax:       "LED:STATe?"
+    description:  "Query the current status of the instrument's LED."
+    handler:      _queryLEDState
+```
+
+**Command Syntax:**
+- Use colons (`:`) to separate command hierarchy levels
+- Lowercase letters indicate optional portions (e.g., `STATe` can be abbreviated as `STAT`)
+- Append `?` for query commands
+
+**Parameter Types:**
+- `string`: Text values
+- `number`: Numeric values (integers or floating-point)
+- `boolean`: True/false values
+- `enum`: One of a predefined set of choices
+- `arbitrarydata`: Binary data blocks
+
+**Optional Parameters:**
+- Add a `default` field to make parameters optional
+- All optional parameters must come at the end of the parameter list
+
+#### Step 2: Configure CMake to Generate the Command Trie
+
+Add the following to your `CMakeLists.txt` file to specify your SCPI configuration:
+
+```cmake
+set(T76_SCPI_CONFIGURATION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scpi.yaml)
+set(T76_SCPI_OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scpi_commands.cpp)
+```
+
+The build system will automatically run the trie generator script during compilation to create `scpi_commands.cpp` containing:
+- The command trie data structure
+- Command definitions
+- Parameter descriptors
+
+You must also add the generated file to your executable in `CMakeLists.txt`:
+
+```cmake
+add_executable(your_project_name
+    main.cpp
+    app.cpp
+    scpi_commands.cpp  # Add the generated file here
+    # ... other source files
+)
+```
+
+#### Step 3: Create Your Application Class
+
+Create an application class that includes the SCPI interpreter and implements command handlers:
+
+```cpp
+#include <t76/app.hpp>
+#include <t76/scpi_interpreter.hpp>
+
+namespace T76 {
+    class App : public T76::Core::App {
+    public:
+        // Instantiate the interpreter with your class as the template parameter
+        T76::SCPI::Interpreter<T76::App> _interpreter;
+
+        App() : _interpreter(*this) {}
+
+        // Override to handle incoming USBTMC data
+        void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, 
+                                    bool transfer_complete) override {
+            // Feed each character to the interpreter
+            for (const auto &byte : data) {
+                _interpreter.processInputCharacter(byte);
+            }
+            
+            // Finalize command processing when transfer completes
+            if (transfer_complete) {
+                _interpreter.processInputCharacter('\n');
+            }
+        }
+
+        // Implement your command handlers
+        void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &params) {
+            _usbInterface.sendUSBTMCBulkData("MyCompany,MyInstrument,0001,1.0");
+        }
+
+        void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params) {
+            _interpreter.reset();
+            // Reset your instrument state here
+        }
+
+        void _setLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
+            // Parameters are automatically validated by the interpreter
+            std::string state = params[0].stringValue;
+            
+            if (state == "ON") {
+                // Turn LED on
+            } else if (state == "OFF") {
+                // Turn LED off
+            } else if (state == "BLINK") {
+                // Make LED blink
+            } else {
+                // Report semantic error
+                _interpreter.addError(202, "Invalid LED state");
+            }
+        }
+
+        void _queryLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
+            std::string currentState = "OFF"; // Get your actual state
+            _usbInterface.sendUSBTMCBulkData(currentState);
+        }
+
+        // ... other methods
+    };
+}
+```
+
+#### Step 4: Implement Command Handlers
+
+Each command handler receives a vector of `ParameterValue` objects. The interpreter guarantees that:
+- The correct number of parameters is provided
+- Each parameter is of the correct type
+- Required parameters are present
+
+Access parameter values using:
+- `params[i].stringValue` for strings and enums
+- `params[i].numberValue` for numbers
+- `params[i].boolValue` for booleans
+- `params[i].arbitraryData` for binary data
+
+**Error Handling:**
+The interpreter handles syntax errors automatically. For semantic errors (invalid values, out-of-range parameters, etc.), report errors using:
+
+```cpp
+_interpreter.addError(errorNumber, "Error description");
+```
+
+Standard SCPI error codes:
+- `-100` series: Command errors
+- `-200` series: Execution errors  
+- `-300` series: Device-specific errors
+- `-400` series: Query errors
+
+#### Step 5: Send Responses
+
+For query commands (ending with `?`), send responses using the USB interface:
+
+```cpp
+// For simple strings
+_usbInterface.sendUSBTMCBulkData("response string");
+
+// For formatted strings (with quotes and escaping)
+std::string formatted = _interpreter.formatString("my string");
+_usbInterface.sendUSBTMCBulkData(formatted);
+
+// For arbitrary binary data
+std::string preamble = _interpreter.abdPreamble(dataSize);
+_usbInterface.sendUSBTMCBulkData(preamble);
+_usbInterface.sendUSBTMCBulkData(binaryData, dataSize);
+```
+
+### Best Practices
+
+1. **Implement Standard Commands**: Always implement at minimum:
+   - `*IDN?`: Identification query
+   - `*RST`: Reset command
+   - `SYSTem:ERRor?`: Error queue query (for retrieving errors)
+
+2. **Handler Naming**: Use a consistent prefix (like `_query` or `_set`) to distinguish handlers from other methods.
+
+3. **State Management**: The interpreter is stateless between commands. Maintain any necessary state in your application class.
+
+4. **Thread Safety**: The interpreter processes one character at a time and is designed for single-threaded use within the USB task context.
+
+5. **Error Reporting**: Report errors immediately when detected. The error queue is automatically managed by the interpreter.
+
+6. **Testing**: Use the included `scpi_test.py` script or similar tools to test your SCPI implementation over USBTMC.
+
+### Configuration
+
+The SCPI system is integrated with the USB interface. No additional configuration is required beyond what's provided by the `t76_ic_usb` library.
+
+For advanced use cases, you can customize the maximum arbitrary data block size when constructing the interpreter:
+
+```cpp
+T76::SCPI::Interpreter<T76::App> _interpreter(*this, 4096);  // 4KB max ABD size
+```
+
