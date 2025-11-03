@@ -71,6 +71,11 @@ class SCPIDefinitionParameter:
                 f"Default value '{self.default}' for parameter '{self.name}' must be one of {self.choices}"
             )
 
+        if self.type == 'enum' and (not self.choices or len(self.choices) == 0):
+            raise ValueError(
+                f"Enum parameter '{self.name}' must have at least one choice"
+            )
+
         if self.type == 'arbitrarydata':
             if self.default is not None:
                 raise ValueError(
