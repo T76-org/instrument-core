@@ -298,6 +298,9 @@ namespace T76::SCPI {
     void Interpreter<TargetT>::processInputCharacter(uint8_t byte) {
         // Process the byte based on the current status
 
+        // Ensure that the byte is treated as uppercase for command parsing
+        byte = toupper(byte);
+
         switch (_status) {
             case InterpreterStatus::ParsingCommand:
                 // Handle command parsing logic

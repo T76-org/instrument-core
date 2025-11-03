@@ -51,4 +51,3 @@ commands:
   - syntax:       "LED:STATe?"
     description:  "Query the current status of the instrument's LED. Returns one of 'ON', 'OFF', or 'BLINK'."
     handler:      _queryLEDState
-

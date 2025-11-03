@@ -80,12 +80,12 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node__starI_children, 0 },
         { 'R', 0, 1, _node__starR_children, 0 }
     };
-    const TrieNode _node_LED_colonSTATe_children[] = {
+    const TrieNode _node_LED_colonSTATE_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 } // Terminal: LED:STATe?
     };
     const TrieNode _node_LED_colonSTAT_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 }, // Terminal: LED:STATe?
-        { 'e', uint8_t(TrieNodeFlags::Terminal), 1, _node_LED_colonSTATe_children, 2 } // Terminal: LED:STATe
+        { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_LED_colonSTATE_children, 2 } // Terminal: LED:STATe
     };
     const TrieNode _node_LED_colonSTA_children[] = {
         { 'T', uint8_t(TrieNodeFlags::Terminal), 2, _node_LED_colonSTAT_children, 2 } // Terminal: LED:STATe

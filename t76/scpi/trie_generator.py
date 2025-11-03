@@ -321,6 +321,9 @@ class SCPITrie:
         for combination in product(*segment_variations):
             variations.append(''.join(combination))
 
+        # Convert all variations to uppercase as SCPI commands are case-insensitive
+        variations = [var.upper() for var in variations]
+
         return variations
 
     def __str__(self) -> str:
