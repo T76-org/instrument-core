@@ -42,14 +42,20 @@ pico_sdk_init()
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(t76-instrument-core 
+        app.cpp
         main.cpp
         freertos/rp2350.c
+        scpi_commands.cpp
 )
 
 add_compile_definitions(
     PICO_CXX_DISABLE_ALLOCATION_OVERRIDES=1 # Disable new/delete overrides so that we can provide our own.
+    LIB_TINYUSB_DEVICE=1
     NDEBUG                                   # Ensure debug assertions are enabled.
 )
+
+set(T76_SCPI_CONFIGURATION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scpi.yaml)
+set(T76_SCPI_OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scpi_commands.cpp)
 
 set(FREERTOS_CONFIG_DIR ${CMAKE_CURRENT_LIST_DIR}/freertos)
 
