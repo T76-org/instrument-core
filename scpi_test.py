@@ -1,54 +1,80 @@
+import argparse
 import usb
 import pyvisa
 
+DEFAULT_RESOURCE_FRAGMENT = "USB0::0x2E8A::0x000A"
 
-# Using PyVISA, find the first 0x2E8A::0x000A device and query its IDN string
 
-rm = pyvisa.ResourceManager()
+def send_scpi(command: str, resource_fragment: str = DEFAULT_RESOURCE_FRAGMENT) -> str:
+    rm = pyvisa.ResourceManager()
+    resource = next((res for res in rm.list_resources()
+                    if resource_fragment in res), None)
+    if resource is None:
+        return "Device not found."
+    instrument = rm.open_resource(resource)
+    try:
+        if command.rstrip().endswith("?"):
+            return instrument.query(command)
+        instrument.write(command)
+        return "Command sent."
+    finally:
+        instrument.close()
 
-# Find the first 0x2E8A::0x000A device
-resources = rm.list_resources()
-target_device = None
-for resource in resources:
-    if "USB0::0x2E8A::0x000A" in resource:
-        target_device = resource
-        break
 
-if target_device:
-    print(f"Found target device: {target_device}")
-    # Open the device
-    instrument = rm.open_resource(target_device)
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Send a SCPI command to the connected instrument.")
+    parser.add_argument(
+        "-reset",
+        action="store_true",
+        help="Reset the instrument by sending *RST. Cannot be combined with other commands.",
+    )
+    parser.add_argument(
+        "-led",
+        dest="led_query",
+        action="store_true",
+        help="Query the LED status by sending LED:STAT?. Cannot be combined with other commands.",
+    )
+    parser.add_argument(
+        "command",
+        nargs="*",
+        help="SCPI command to send (default: *IDN?). Use 'led on|off|blink' to control the LED.",
+    )
+    parser.add_argument(
+        "-r",
+        "--resource-fragment",
+        default=DEFAULT_RESOURCE_FRAGMENT,
+        help="Substring used to select the VISA resource.",
+    )
+    args = parser.parse_args()
 
-    # Query the IDN string
-    idn_string = instrument.query("*IDN?")
-    print(f"IDN String: {idn_string}")
-else:
-    print("No device with VID:PID 0x2E8A:0x000A found.")
+    if args.reset:
+        if args.led_query or args.command:
+            parser.error("Do not combine -reset with other command options.")
+        command = "*RST"
+    elif args.led_query:
+        if args.command:
+            parser.error("Do not combine -led with other command options.")
+        command = "LED:STAT?"
+    elif args.command:
+        if args.command[0].lower() == "led":
+            if len(args.command) != 2:
+                parser.error("Use 'led on', 'led off', or 'led blink'.")
+            state = args.command[1].lower()
+            if state not in {"on", "off", "blink"}:
+                parser.error("LED state must be one of: on, off, blink.")
+            command = f"LED:STAT {state.upper()}"
+        else:
+            command = " ".join(args.command)
+    else:
+        command = "*IDN?"
 
-# print(pyvisa.ResourceManager().list_resources())
+    response = send_scpi(command, args.resource_fragment)
+    if command.rstrip().endswith("?"):
+        print(f"Response to {command}: {response}")
+    else:
+        print(response)
 
-# resource_string = "USB0::0x2E8A::0x000A::7913911B4CB0B01C::4::INSTR"
-# r = pyvisa.ResourceManager().open_resource(resource_string)
-# result = r.query_ascii_values("*IDN?", "s")
-# print(result)
 
-# Find all USB devices
-# devices = usb.core.find(find_all=True)
-
-# for device in devices:
-#     try:
-#         print(f"Device: {device.idVendor:04x}:{device.idProduct:04x}")
-#         print(f"  Manufacturer: {usb.util.get_string(device, device.iManufacturer) if device.iManufacturer else 'Unknown'}")
-#         print(f"  Product: {usb.util.get_string(device, device.iProduct) if device.iProduct else 'Unknown'}")
-
-#         for cfg in device:
-#             print(f"  Configuration: {cfg.bConfigurationValue}")
-#             for intf in cfg:
-#                 print(f"    Interface: {intf.bInterfaceNumber}")
-#                 print(f"               {intf}")
-#                 for ep in intf:
-#                     print(f"      Endpoint: {ep.bEndpointAddress:02x}")
-#         print()
-#     except Exception as e:
-#         print(f"Error reading device {device.idVendor:04x}:{device.idProduct:04x}: {e}")
-#         print()
+if __name__ == "__main__":
+    main()

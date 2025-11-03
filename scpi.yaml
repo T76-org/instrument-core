@@ -33,3 +33,22 @@ commands:
     description:  "Query the instrument identification string."
     handler:      _queryIDN
 
+  - syntax:       "*RST"
+    description:  "Reset the instrument to its power-on state."
+    handler:      _resetInstrument
+
+  # More fun commands
+
+  - syntax:       "LED:STATe"
+    description:  "Set the status of the instrument's LED."
+    handler:      _setLEDState
+    parameters:
+      - name:        state
+        type:        enum
+        choices:     ["ON", "OFF", "BLINK"]
+        description: "The desired LED state."
+
+  - syntax:       "LED:STATe?"
+    description:  "Query the current status of the instrument's LED. Returns one of 'ON', 'OFF', or 'BLINK'."
+    handler:      _queryLEDState
+

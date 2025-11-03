@@ -23,6 +23,15 @@
  * and its parameters, and then call the appropriate command handler with 
  * the parsed parameters. 
  * 
+ * Command handlers are expected to take a vector of ParameterValue objects
+ * representing the parsed parameters. Note that the interpreter already verifies
+ * that the correct number and types of parameters are provided before calling
+ * the handler, so you can assume that the parameters are valid, but you must still
+ * handle any semantic errors that may arise during command execution. For example,
+ * if a command expects a parameter to be within a certain range, you must check
+ * that the provided parameter is within that range and handle the error if it is not,
+ * but the interpreter will ensure that the parameter is of the correct type.
+ * 
  * Errors can be reported by calling the `addError` method. You will need to 
  * add a `SYSTem:ERROR?` command to your command set to retrieve errors and
  * output them to the output stream according to SCPI specifications.
@@ -566,7 +575,7 @@ namespace T76::SCPI {
                         return ParameterValue(descriptor.choices[i], true); // Return as enum value
                     }
                 }
-                
+
                 return ParameterValue(ParameterType::Invalid); // No matching enum value found
 
             case ParameterType::ArbitraryData:

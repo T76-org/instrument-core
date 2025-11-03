@@ -31,7 +31,27 @@ void App::_onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_
 }
 
 void App::_queryIDN(const std::vector<T76::SCPI::ParameterValue> &params) {
-    _usbInterface.sendUSBTMCBulkData("Hello world");
+    _usbInterface.sendUSBTMCBulkData("MTA Inc.,T76-Dev,0001,1.0");
+}
+
+void App::_resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _interpreter.reset();
+    _ledState = LEDState::OFF;
+}
+
+void App::_setLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    LEDState newState = StringToLEDState(params[0].stringValue);
+
+    if (newState == LEDState::OFF || newState == LEDState::ON || newState == LEDState::BLINK) {
+        _ledState = newState;
+    } else {
+        _interpreter.addError(202, "Unknown LED state");
+    }
+}
+
+void App::_queryLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
+    std::string stateStr = std::string(LEDStateToString(_ledState));
+    _usbInterface.sendUSBTMCBulkData(stateStr);
 }
 
 bool App::activate() {
@@ -64,22 +84,25 @@ void App::triggerMemManageFault() {
     *null_ptr = 0xDEADBEEF;
 }
 
-void App::_printTask() {
+void App::_ledTask() {
     int count = 0;
 
     while (true) {
-        char *ptr = new char[320];
-        // snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
-        // fputs(ptr, stdout);
-        delete[] ptr;
+        switch (_ledState) {
+            case LEDState::OFF:
+                status_led_set_state(false);
+                break;
+            case LEDState::ON:
+                status_led_set_state(true);
+                break;
+            case LEDState::BLINK:
+                status_led_set_state(count++ % 2 == 0);
+                break;
+            default:
+                status_led_set_state(false);
+                break;
+        }
 
-        // char *f = (char *)malloc(5000);
-        // f[0] = 0;
-
-        // if (count > 30) {
-        //     triggerMemManageFault();  // Trigger HardFault for testing
-        // }
-        
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -95,9 +118,9 @@ void App::_initCore0() {
     xTaskCreate(
         [](void *param) {
             App *app = static_cast<App*>(param);
-            app->_printTask();
+            app->_ledTask();
         },
-        "print",
+        "led",
         2256,
         this,
         10,
