@@ -18,7 +18,8 @@ using namespace T76::Core::USB;
 Interface* Interface::_singleton = nullptr;
 
 
-Interface::Interface() : 
+Interface::Interface(InterfaceDelegate &delegate) : 
+    _delegate(delegate),
     _usbtmcBulkInDataQueue(T76_IC_USB_INTERFACE_BULK_IN_QUEUE_SIZE) {
 }
 
@@ -89,6 +90,16 @@ void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {
     _usbtmcBulkInDataQueue.push(data);
 }
 
+void Interface::sendUSBTMCBulkData(std::string data, bool addNewline) {
+    std::vector<uint8_t> byteData(data.begin(), data.end());
+
+    if (addNewline) {
+        byteData.push_back('\n');
+    }
+
+    _usbtmcBulkInDataQueue.push(byteData);
+}
+
 void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     _usbtmcSRQInterruptData.bNotify1 = USB488_bNOTIFY1_SRQ;
     _usbtmcSRQInterruptData.StatusByte = srq;
@@ -134,7 +145,7 @@ void Interface::_dispatchTask() {
         if (xQueueReceive(_dispatchQueue, &item, portMAX_DELAY) == pdTRUE) {
             switch (item->type) {
                 case DispatchType::DataReceived:
-                    _onVendorDataReceived(item->data);
+                    _delegate._onVendorDataReceived(item->data);
                     break;
 
                 case DispatchType::SendData: {
@@ -223,12 +234,13 @@ bool Interface::_vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb
                 return tud_control_xfer(rhport, request, _vendorControlDataInBuffer.data(), _vendorControlDataInBuffer.size());
             }
             
-            return _onVendorControlTransferIn(rhport, request);
+            return _delegate._onVendorControlTransferIn(rhport, request);
+
 
         case CONTROL_STAGE_DATA:
 
             if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
-                return _onVendorControlTransferOut(request->bRequest, request->wValue, std::vector<uint8_t>(_vendorControlDataInBuffer.begin(), _vendorControlDataInBuffer.begin() + request->wLength));
+                return _delegate._onVendorControlTransferOut(request->bRequest, request->wValue, std::vector<uint8_t>(_vendorControlDataInBuffer.begin(), _vendorControlDataInBuffer.begin() + request->wLength));
             }
 
             break;
@@ -273,7 +285,7 @@ bool Interface::_usbtmcMsgData(void *data, size_t len, bool transfer_complete) {
         return false; // Data too large
     }
 
-    _onUSBTMCDataReceived(std::vector<uint8_t>(static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + len), transfer_complete);
+    _delegate._onUSBTMCDataReceived(std::vector<uint8_t>(static_cast<uint8_t*>(data), static_cast<uint8_t*>(data) + len), transfer_complete);
     
     tud_usbtmc_start_bus_read(); // Start reading from the USBTMC bus
 

@@ -1,14 +1,14 @@
 /**
  * @file interface.hpp
- * @brief Abstract USB interface class.
- * @copyright Copyright (c) 2025 MTA, Inc.
+ * @brief USB interface runtime and delegate definitions.
  * 
- * This file defines the abstract USB interface class that provides methods for
- * initializing the USB interface, sending data, and handling control transfers.
+ * This file defines the abstract `InterfaceDelegate` callback contract and the
+ * concrete `Interface` runtime responsible for initializing the USB interface,
+ * sending data, and handling control transfers.
  * 
- * The class provides three interfaces:
+ * The runtime exposes four interfaces:
  * 
- * - A CDC inteface for serial communication. This is co-opted by stdio so
+ * - A CDC interface for serial communication. This is co-opted by stdio so
  *   that printf and other stdio functions can be dumped directly to USB.
  * - An interface that's compatible with picotool's reset mechanism.
  *   This allows you to reset the device and enter bootloader mode,
@@ -20,23 +20,23 @@
  * - A USBTMC interface that provides a standard interface for test and 
  *   measurement devices.
  * 
- * The class is multithreaded and fully reentrant, allowing you to
+ * The runtime is multithreaded and fully reentrant, allowing you to
  * send and receive data from multiple threads without blocking. It uses
  * a FreeRTOS queue to manage receiving and sending bulk data over the
  * vendor interface, and provides an internal task that manages 
  * TinyUSB events.
  * 
- * The class is designed to be used as a singleton, and you should
+ * The runtime is designed to be used as a singleton, and you should
  * call the `init()` method to initialize it before using it.
  *
- * You must subclass this class and implement the following methods:
+ * Implement an `InterfaceDelegate` subclass to handle application-specific callbacks.
+ * All delegate callbacks are declared pure virtual, so each must be implemented
+ * by your concrete delegate:
  * 
- * - `_onDataReceived`: This method is called when bulk data is received from 
- *   the USB interface.
  * - `_onVendorControlTransferIn`: called when a control transfer that expects data
  *   to be sent back to the host (`IN` direction from the host's perspective)
  *   is received. You must reply with the data to be sent back by calling
- *   `_sendVendorControlTransferData()` before returning. Note that the data
+ *   `sendVendorControlTransferData()` before returning. Note that the data
  *   sent back will be truncated to ITF_BUFFER_SIZE bytes, so you must
  *   ensure that the data you send back is no larger than that. If you 
  *   need to send more data, you should use bulk transfers instead.
@@ -51,12 +51,13 @@
  *   accumulate data until the transfer is complete. The speed USBTMC replies
  *   can be processed asynchronously, but you must be cognizant of the fact that
  *   USBTMC generally requires a specific response format and timing. Also,
- *   the class doesn't provide any mechanism for ensuring that a request is
+ *   the runtime doesn't provide any mechanism for ensuring that a request is
  *   completely processed before the next request is handled, so you must
  *   ensure that your implementation can handle this.
  *
- * You can also change the USBTMC capabilities by initializing the
- * `_usbtmcStoredCapabilities` member in your subclass constructor.
+ * If you choose to subclass `Interface` itself, you can change the USBTMC
+ * capabilities by initializing the `_usbtmcStoredCapabilities` member in your
+ * subclass constructor.
  *
  * Control transfer methods must return `true` if the transfer was
  * successfully handled, or `false` if it was not. If you return `false`, the
@@ -98,8 +99,10 @@
 #pragma once
 
 
-#include <stdint.h>
+#include <memory>
 #include <queue>
+#include <stdint.h>
+#include <string>
 #include <vector>
 
 #include <FreeRTOS.h>
@@ -112,33 +115,96 @@
 
 namespace T76::Core::USB {
 
+    class Interface;
+
     /**
-     * @brief Abstract USB interface class.
+     * @brief Abstract delegate interface for handling USB callbacks.
      * 
-     * This class provides an abstract interface for USB communication.
-     * It provides a stdio-compatible CDC interface, a reset interface
-     * compatible with picotool, and a vendor interface that supports
-     * WebUSB and Microsoft OS 2.0 descriptors in addition to custom
-     * functionality such as USBTMC compatibility.
+     * Implement this abstract base class to receive data and control transfer
+     * events emitted by the concrete `Interface` runtime.
+     */
+    class InterfaceDelegate {
+    friend class Interface;
+
+    protected:        
+        /**
+         * @brief Bulk data received callback.
+         * 
+         * @param data The data received from the USB host.
+         * 
+         * This method is called when bulk data is received from the USB host.
+         * You can implement this method in a subclass to handle the received data.
+         * 
+         * Note that this method is called asynchronously from the USB dispatch task.
+         * If you wish to process the data asynchronously, you can take ownership
+         * of it and process it in your own task or callback.
+         */
+        virtual void _onVendorDataReceived(const std::vector<uint8_t> &data) = 0;
+
+        /**
+         * @brief Vendor control transfer IN callback.
+         * 
+         * @param port The USB port number.
+         * @param request The control request that was received.
+         * 
+         * This method is called when a control transfer that expects data to be sent back
+         * to the host is received. You can implement this method in a subclass to handle
+         * the control transfer and send the appropriate data back using `sendVendorControlTransferData()`.
+         * 
+         * @return true if the control transfer was successfully handled, false otherwise.
+         */
+        virtual bool _onVendorControlTransferIn(uint8_t port, const tusb_control_request_t *request) = 0;
+
+        /**
+         * @brief Vendor control transfer OUT callback.
+         * 
+         * @param request The control request that was received.
+         * @param value The value associated with the control request.
+         * @param data The data received in the control transfer.
+         * 
+         * This method is called when a control transfer that expects data to be sent to the host
+         * is received. You can implement this method in a subclass to handle the control transfer
+         * and process the received data as needed.
+         * 
+         * @return true if the control transfer was successfully handled, false otherwise.
+         */
+        virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) = 0;
+
+        /**
+         * @brief USBTMC data received callback.
+         * 
+         * @param data The data received from the USB host.
+         * @param transfer_complete Indicates whether the transfer is complete.
+         * 
+         * This method is called when bulk data is received from the USB host on the USBTMC interface.
+         * You can implement this method in a subclass to handle the received data.
+         * 
+         */
+        virtual void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) = 0;
+    };
+
+    /**
+     * @brief Concrete USB interface runtime.
      * 
-     * The class is designed to be used as a singleton, and you should
-     * call the `init()` method to initialize it before using it.
+     * This class provides the operational implementation for USB communication.
+     * It sets up a stdio-compatible CDC interface, a reset interface compatible
+     * with picotool, and a vendor interface that supports WebUSB and Microsoft
+     * OS 2.0 descriptors in addition to custom functionality such as USBTMC.
      * 
-     * You must subclass this class and implement the following methods:
+     * Register an `InterfaceDelegate` via `delegate()` to attach application
+     * specific behavior. The delegate is expected to implement:
      * 
-     * - `_onDataReceived`: This method is called when bulk data is received from
-     *  the USB interface.
-     * - `_onVendorControlTransferIn`: called when a control transfer that expects data
-     *  to be sent back to the host (`IN` direction from the host's perspective)
-     * is received. You must reply with the data to be sent back by calling
-     * `_sendControlTransferData()` before returning. Note that the data
-     * sent back will be truncated to ITF_BUFFER_SIZE bytes, so you must
-     * ensure that the data you send back is no larger than that. If you
-     * need to send more data, you should use bulk transfers instead.
-     * - `_onVendorControlTransferOut`: called when a control transfer that expects data
-     * to be sent to the host (`OUT` direction from the host's perspective) is
-     * received. The data is passed as a vector of bytes, and you can process it
-     * as needed.
+     * - `_onVendorControlTransferIn`: invoked when a control transfer that expects
+     *   data to be sent back to the host (`IN` direction from the host's perspective)
+     *   is received. You must reply with the data to be sent back by calling
+     *   `sendVendorControlTransferData()` before returning. Note that the data
+     *   sent back will be truncated to ITF_BUFFER_SIZE bytes, so you must ensure
+     *   that the data you send back is no larger than that. If you need to send
+     *   more data, you should use bulk transfers instead.
+     * - `_onVendorControlTransferOut`: called when a control transfer that expects
+     *   data to be sent to the host (`OUT` direction from the host's perspective)
+     *   is received. The data is passed as a vector of bytes, and you can process it
+     *   as needed.
      * - `_onVendorDataReceived`: called when bulk data is received from the vendor 
      *   interface.
      * - `_onUSBTMCDataReceived`: called when bulk data is received from the USBTMC 
@@ -146,7 +212,7 @@ namespace T76::Core::USB {
      *   accumulate data until the transfer is complete. The speed USBTMC replies
      *   can be processed asynchronously, but you must be cognizant of the fact that
      *   USBTMC generally requires a specific response format and timing. Also,
-     *   the class doesn't provide any mechanism for ensuring that a request is
+     *   the runtime doesn't provide any mechanism for ensuring that a request is
      *   completely processed before the next request is handled, so you must
      *   ensure that your implementation can handle this.
      * 
@@ -160,8 +226,11 @@ namespace T76::Core::USB {
         /**
          * @brief Constructor for the USB interface.
          */
-        Interface();
+        Interface(InterfaceDelegate &delegate);
         
+        /**
+         * @brief Virtual destructor to allow safe subclass cleanup.
+         */
         virtual ~Interface() = default;
 
         /**
@@ -211,6 +280,17 @@ namespace T76::Core::USB {
         void sendUSBTMCBulkData(const std::vector<uint8_t> &data);
 
         /**
+         * @brief Send USBTMC bulk data to the USB host.
+         * @param data The data to be sent as a string. The function will convert
+         *             the string to a byte array and send it asynchronously.
+         * @param addNewline Whether to add a newline at the end of the data.
+         * 
+         * This method is thread-safe and can be called from any thread. The data
+         * transfer operation is queued and processed in the USB dispatch task.
+         */
+        void sendUSBTMCBulkData(std::string data, bool addNewline = true);
+
+        /**
          * @brief Send a USBTMC SRQ interrupt to the USB host.
          * 
          * @param srq The SRQ value to be sent.
@@ -220,61 +300,9 @@ namespace T76::Core::USB {
     protected:
 
         /**
-         * @brief Bulk data received callback.
-         * 
-         * @param data The data received from the USB host.
-         * 
-         * This method is called when bulk data is received from the USB host.
-         * You can implement this method in a subclass to handle the received data.
-         * 
-         * Note that this method is called asynchronously from the USB dispatch task.
-         * If you wish to process the data asynchronously, you can take ownership
-         * of it and process it in your own task or callback.
+         * @brief Registered delegate that receives interface callbacks.
          */
-        virtual void _onVendorDataReceived(const std::vector<uint8_t> &data) {};
-
-        /**
-         * @brief Vendor control transfer IN callback.
-         * 
-         * @param port The USB port number.
-         * @param request The control request that was received.
-         * 
-         * This method is called when a control transfer that expects data to be sent back
-         * to the host is received. You can implement this method in a subclass to handle
-         * the control transfer and send the appropriate data back using `sendVendorControlTransferData()`.
-         * 
-         * @return true if the control transfer was successfully handled, false otherwise.
-         */
-        virtual bool _onVendorControlTransferIn(uint8_t port, const tusb_control_request_t *request) { return true; };
-
-        /**
-         * @brief Vendor control transfer OUT callback.
-         * 
-         * @param request The control request that was received.
-         * @param value The value associated with the control request.
-         * @param data The data received in the control transfer.
-         * 
-         * This method is called when a control transfer that expects data to be sent to the host
-         * is received. You can implement this method in a subclass to handle the control transfer
-         * and process the received data as needed.
-         * 
-         * @return true if the control transfer was successfully handled, false otherwise.
-         */
-        virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) { return true; };
-
-        /**
-         * @brief USBTMC data received callback.
-         * 
-         * @param data The data received from the USB host.
-         * @param transfer_complete Indicates whether the transfer is complete.
-         * 
-         * This method is called when bulk data is received from the USB host on the USBTMC interface.
-         * You can implement this method in a subclass to handle the received data.
-         * 
-         */
-        virtual void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) {};
-
-        // Internal methods and members
+        InterfaceDelegate &_delegate;
 
         /**
          * @brief The type of an item sent to the dispatch queue.
@@ -317,16 +345,39 @@ namespace T76::Core::USB {
          */
         static Interface *_singleton;
 
-        QueueHandle_t _dispatchQueue; // Queue for dispatching USB events
+        /**
+         * @brief Queue used to dispatch USB events to the worker task.
+         */
+        QueueHandle_t _dispatchQueue;
 
-        std::vector<uint8_t> _vendorControlDataOutBuffer; // Buffer for vendor control transfer IN data
-        std::vector<uint8_t> _vendorControlDataInBuffer; // Buffer for vendor control transfer OUT data
+        /**
+         * @brief Buffer that stores IN-direction vendor control transfer data.
+         */
+        std::vector<uint8_t> _vendorControlDataOutBuffer;
 
-        T76::Core::Utils::FixedSizeQueue<std::vector<uint8_t>> _usbtmcBulkInDataQueue; // Fixed-size queue for USBTMC bulk IN data
+        /**
+         * @brief Buffer that stores OUT-direction vendor control transfer data.
+         */
+        std::vector<uint8_t> _vendorControlDataInBuffer;
 
-        std::vector<uint8_t> _usbtmcBulkInDataPending; // Data being sent in the current USBTMC bulk IN transfer
-        size_t _usbtmcBulkInPendingOffset = 0; // Offset into the current pending USBTMC bulk IN data
+        /**
+         * @brief Fixed-size queue backing USBTMC bulk IN transfers.
+         */
+        T76::Core::Utils::FixedSizeQueue<std::vector<uint8_t>> _usbtmcBulkInDataQueue;
 
+        /**
+         * @brief Data currently in-flight for a USBTMC bulk IN transfer.
+         */
+        std::vector<uint8_t> _usbtmcBulkInDataPending;
+
+        /**
+         * @brief Offset into the pending USBTMC bulk IN payload.
+         */
+        size_t _usbtmcBulkInPendingOffset = 0;
+
+        /**
+         * @brief Default USBTMC capability descriptor returned to the host.
+         */
         usbtmc_response_capabilities_488_t _usbtmcStoredCapabilities = {
             .USBTMC_status = USBTMC_STATUS_SUCCESS,
             .bcdUSBTMC = USBTMC_VERSION,
@@ -350,8 +401,12 @@ namespace T76::Core::USB {
                 .SR1 = 1,
                 .SCPI = 1,
             }
-        }; 
-        usbtmc_srq_interrupt_488_t _usbtmcSRQInterruptData; // USBTMC SRQ interrupt data
+        };
+
+        /**
+         * @brief Cached SRQ interrupt payload for USBTMC notifications.
+         */
+        usbtmc_srq_interrupt_488_t _usbtmcSRQInterruptData;
 
         /**
          * @brief The runtime task.
