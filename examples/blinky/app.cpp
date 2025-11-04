@@ -88,6 +88,11 @@ void App::_ledTask() {
     int count = 0;
 
     while (true) {
+        T76::Core::Safety::feedWatchdogFromCore1();
+
+        // Note that no synchronization is required 
+        // as LED state is a uint32_t and reads/writes are atomic.
+
         switch (_ledState) {
             case LEDState::OFF:
                 status_led_set_state(false);
@@ -103,7 +108,7 @@ void App::_ledTask() {
                 break;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        sleep_ms(100);
     }
 }
 
@@ -114,33 +119,10 @@ void App::_init() {
 }
 
 void App::_initCore0() {
-    // Create FreeRTOS tasks
-    xTaskCreate(
-        [](void *param) {
-            App *app = static_cast<App*>(param);
-            app->_ledTask();
-        },
-        "led",
-        2256,
-        this,
-        10,
-        NULL
-    );
+    // Does nothing.
 }
 
 void App::_startCore1() {
-    int count = 0;
-    char ptr[100];
-
-    while (true) {
-        // Send heartbeat to Core 0 watchdog manager to indicate Core 1 is alive
-        T76::Core::Safety::feedWatchdogFromCore1();
-        
-        // snprintf(ptr, 32, "C %d: %d : %u\n", get_core_num(), count++, xPortGetFreeHeapSize());
-        // fputs(ptr, stdout);
-        // status_led_set_state(!status_led_get_state());
-        
-        sleep_ms(100);  // Send heartbeat every 100ms (well within 2s timeout)
-    }
+    _ledTask();
 }
 
