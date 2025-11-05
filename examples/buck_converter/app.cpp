@@ -61,8 +61,9 @@ void App::_initCore0() {
 }
 
 void App::_startCore1() {
+    _buckConverter.start();
+
     for(;;) {
-        T76::Core::Safety::feedWatchdogFromCore1();
         status_led_set_state(!status_led_get_state()); // Toggle status LED to indicate Core 1 is running
         sleep_ms(100); // Allow time for the watchdog to be fed
     }

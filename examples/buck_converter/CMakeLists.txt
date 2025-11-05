@@ -43,6 +43,7 @@ pico_sdk_init()
 
 add_executable(t76-ic-example-buck-converter
         app.cpp
+        buck.cpp
         main.cpp
         freertos/rp2350.c
         scpi_commands.cpp
@@ -70,6 +71,7 @@ add_subdirectory(../../t76 build/t76_build)
 # Add the standard library to the build
 target_link_libraries(t76-ic-example-buck-converter
         t76_ic
+        hardware_pwm
 )
 
 # Add the standard include files to the build

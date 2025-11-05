@@ -15,6 +15,9 @@
 #include <t76/app.hpp>
 #include <t76/scpi_interpreter.hpp>
 
+#include "buck.hpp"
+
+
 namespace T76 {
 
     // App class implementation
@@ -40,6 +43,7 @@ namespace T76 {
         void _startCore1();
 
     protected:
+        BuckConverter _buckConverter; ///< Buck converter component instance
 
     }; // class App
 
