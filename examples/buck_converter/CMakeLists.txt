@@ -34,15 +34,16 @@ include(pico_sdk_import.cmake)
 # Pull in FreeRTOS Kernel (must be before project)
 include(FreeRTOS_Kernel_import.cmake)
 
-project(t76-instrument-core C CXX ASM)
+project(t76-ic-example-buck-converter C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(t76-instrument-core 
+add_executable(t76-ic-example-buck-converter
         app.cpp
+        buck.cpp
         main.cpp
         freertos/rp2350.c
         scpi_commands.cpp
@@ -59,24 +60,26 @@ set(T76_SCPI_OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/scpi_commands.cpp)
 
 set(FREERTOS_CONFIG_DIR ${CMAKE_CURRENT_LIST_DIR}/freertos)
 
-pico_set_program_name(t76-instrument-core "t76-instrument-core")
-pico_set_program_version(t76-instrument-core "0.1")
+pico_set_program_name(t76-ic-example-buck-converter "t76-ic-example-buck-converter")
+pico_set_program_version(t76-ic-example-buck-converter "0.1")
 
 # Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_usb(t76-instrument-core 1)
+pico_enable_stdio_usb(t76-ic-example-buck-converter 1)
 
-add_subdirectory(t76)
+add_subdirectory(../../t76 build/t76_build)
 
 # Add the standard library to the build
-target_link_libraries(t76-instrument-core
+target_link_libraries(t76-ic-example-buck-converter
+        hardware_adc
+        hardware_pwm
         t76_ic
 )
 
 # Add the standard include files to the build
-target_include_directories(t76-instrument-core PRIVATE
+target_include_directories(t76-ic-example-buck-converter PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/freertos
 )
 
-pico_add_extra_outputs(t76-instrument-core)
+pico_add_extra_outputs(t76-ic-example-buck-converter)
 

@@ -214,7 +214,7 @@ To address these concerns, the safety system implements a two-shot startup proce
 
 To participate in this safing mechanisms, components need to implement the `T76::Core::Safety::SafeableComponent` interface, which defines a `makeSafe()` method, which is called during the safing process, and an `activate()` method, which is called to bring the component back to normal operation and returns a boolean indicating success or failure.
 
-Components should register themselves with the safety system using the `T76::Core::Safety::registerSafeableComponent()` function.
+Components should register themselves with the safety system using the `T76::Core::Safety::registerSafeableComponent()` function. By default, this is done automatically when the component is constructed, so typically you only need to ensure that your components are statically instantiated before the safety system is initialized.
 
 Note that the system makes no guarantees about the order in which components are safed or activated. Therefore, components should be designed to handle safing and activation independently of other components. Also, the system assumes that components are statically allocated and remain in memory for the lifetime of the program. This is, generally, a good practice for safety-critical components, especially those involved in the safing process.
 

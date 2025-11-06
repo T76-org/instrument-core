@@ -243,4 +243,9 @@ namespace T76::Core::Safety {
         }
     }
 
+    SafeableComponent::SafeableComponent() {
+        // Register this component with the safety system upon construction
+        registerComponent(this);
+    }
+
 } // namespace T76::Core::Safety

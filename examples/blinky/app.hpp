@@ -17,7 +17,7 @@
 
 namespace T76 {
 
-    enum class LEDState : uint8_t {
+    enum class LEDState : uint32_t {
         OFF = 0,
         ON = 1,
         BLINK = 2,

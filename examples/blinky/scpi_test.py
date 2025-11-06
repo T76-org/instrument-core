@@ -31,14 +31,10 @@ def main() -> None:
     )
     parser.add_argument(
         "-led",
-        dest="led_query",
-        action="store_true",
-        help="Query the LED status by sending LED:STAT?. Cannot be combined with other commands.",
-    )
-    parser.add_argument(
-        "command",
-        nargs="*",
-        help="SCPI command to send (default: *IDN?). Use 'led on|off|blink' to control the LED.",
+        nargs="?",
+        const="query",
+        choices=["on", "off", "blink"],
+        help="Control the LED state or query status. Use without argument to query, or specify 'on', 'off', or 'blink' to set state.",
     )
     parser.add_argument(
         "-r",
@@ -52,20 +48,8 @@ def main() -> None:
         if args.led_query or args.command:
             parser.error("Do not combine -reset with other command options.")
         command = "*RST"
-    elif args.led_query:
-        if args.command:
-            parser.error("Do not combine -led with other command options.")
-        command = "LED:STAT?"
-    elif args.command:
-        if args.command[0].lower() == "led":
-            if len(args.command) != 2:
-                parser.error("Use 'led on', 'led off', or 'led blink'.")
-            state = args.command[1].lower()
-            if state not in {"on", "off", "blink"}:
-                parser.error("LED state must be one of: on, off, blink.")
-            command = f"LED:STAT {state.upper()}"
-        else:
-            command = " ".join(args.command)
+    elif args.led is not None:
+        command = "LED:STAT?" if args.led == "query" else f"LED:STAT {args.led}"
     else:
         command = "*IDN?"
 

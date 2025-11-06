@@ -1,0 +1,90 @@
+# Copyright (c) 2025 MTA, Inc.
+#
+# This file defines all the SCPI commands recognized by the interpreter.
+# It should generally include both standard SCPI commands like those prescribed by
+# IEEE 488.2, and custom commands specific to the instrument.
+#
+# A command definition consists of the following components:
+# - `syntax`: The SCPI command syntax. The entire hierarchical path should be
+#   included, starting with the command name and including all subcommands.
+#   Optional portions of a command path element can be indicated in lowercase.
+# - `description`: A brief description of what the command does. This is not
+#   included in the generated code, but is used for documentation purposes.
+# - `handler`: The name of the function that will handle the command when it is
+#   executed. This function should be defined in the concrete interpreter class.
+# - `parameters`: An optional list of parameters that the command accepts.
+#   Each parameter should have a `name`, `type`, and `description`. The `type`
+#   can be a simple type like `number` or `string`, or an `enum` type with a list of
+#   possible values. A parameter can be marked as optional by providing a
+#   `default` value. Note that all optional parameters must be terminal, or
+#   the command will not be recognized correctly.
+#
+# This file is processed by the `trie_generator.py` script to generate the
+# data structures required by the SCPI interpreter.
+
+class_name: App
+namespace: T76
+output_file: scpi_commands.cpp
+
+commands:
+  # Default SCPI commands
+
+  - syntax:       "*IDN?"
+    description:  "Query the instrument identification string."
+    handler:      _queryIDN
+
+  - syntax:       "*RST"
+    description:  "Reset the instrument to its power-on state."
+    handler:      _resetInstrument
+
+  - syntax:       "PID:KP"
+    description:  "Set the proportional gain of the PID controller."
+    handler:      _setKp
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The proportional gain value."
+
+  - syntax:       "PID:KP?"
+    description:  "Query the proportional gain of the PID controller."
+    handler:      _queryKp
+
+  - syntax:       "PID:KI"
+    description:  "Set the integral gain of the PID controller."
+    handler:      _setKi
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The integral gain value."
+
+  - syntax:       "PID:KI?"
+    description:  "Query the integral gain of the PID controller."
+    handler:      _queryKi
+
+  - syntax:       "PID:KD"
+    description:  "Set the derivative gain of the PID controller."
+    handler:      _setKd
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The derivative gain value."
+
+  - syntax:       "PID:KD?"
+    description:  "Query the derivative gain of the PID controller."
+    handler:      _queryKd
+
+  - syntax:       "SET:VOLT"
+    description:  "Set the target output voltage of the buck converter."
+    handler:      _setTargetVoltage
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The target voltage in volts."
+
+  - syntax:       "SET:VOLT?"
+    description:  "Query the target output voltage of the buck converter."
+    handler:      _queryTargetVoltage
+
+  - syntax:       "MEAS:VOLT?"
+    description:  "Query the sensed output voltage of the buck converter."
+    handler:      _querySensedVoltage

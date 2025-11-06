@@ -1,10 +1,10 @@
 # Configurable options for the USB interface library
 
 set(T76_IC_USB_INTERFACE_BULK_IN_QUEUE_SIZE 8 CACHE STRING "Size of the bulk IN queue for USB interface (number of messages)")
-set(T76_IC_USB_RUNTIME_TASK_STACK_SIZE 256 CACHE STRING "Stack size for the USB runtime task (in words)")
+set(T76_IC_USB_RUNTIME_TASK_STACK_SIZE 1024 CACHE STRING "Stack size for the USB runtime task (in words)")
 set(T76_IC_USB_RUNTIME_TASK_PRIORITY 1 CACHE STRING "Priority for the USB runtime task")
 
-set(T76_IC_USB_DISPATCH_TASK_STACK_SIZE 256 CACHE STRING "Stack size for the USB dispatch task (in words)")
+set(T76_IC_USB_DISPATCH_TASK_STACK_SIZE 1024 CACHE STRING "Stack size for the USB dispatch task (in words)")
 set(T76_IC_USB_DISPATCH_TASK_PRIORITY 1 CACHE STRING "Priority for the USB dispatch task")
 set(T76_IC_USB_TASK_DELAY_MS 1 CACHE STRING "Delay (in ms) for the USB task loop when idle")
 
