@@ -1,7 +1,5 @@
 # T76 Instrument Core
 
-**Work in progress.** This project is under active development and incomplete as of October 2025. Follow the repository for updates.
-
 This project is a template for building “prosumer”-grade firmware for measurement instruments based on RP2350-based boards, such as the Raspberry Pi Pico 2.
 
 It provides these features:
@@ -30,8 +28,6 @@ The IC uses FreeRTOS to manage all non-critical tasks. FreeRTOS is configured to
 Core 1 is reserved for bare-metal critical tasks that have strict timing and priority requirements.
 
 ## Using the template
-
-TODO: Please note that this section does not represent the current state of the project, as it is still under development.
 
 The IC includes a convenient template that makes it easy to build your own firmware that implements the T76 framework.
 
