@@ -38,6 +38,42 @@ void App::_resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params)
     _interpreter.reset();
 }
 
+void App::_setKp(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _buckConverter.kP(static_cast<float>(params[0].numberValue));
+}
+
+void App::_queryKp(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(std::to_string(_buckConverter.kP()));
+}
+
+void App::_setKi(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _buckConverter.kI(static_cast<float>(params[0].numberValue));
+}
+
+void App::_queryKi(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(std::to_string(_buckConverter.kI()));
+}
+
+void App::_setKd(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _buckConverter.kD(static_cast<float>(params[0].numberValue));
+}
+
+void App::_queryKd(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(std::to_string(_buckConverter.kD()));
+}
+
+void App::_setTargetVoltage(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _buckConverter.setPoint(static_cast<float>(params[0].numberValue));
+}
+
+void App::_queryTargetVoltage(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(std::to_string(_buckConverter.setPoint()));
+}
+
+void App::_querySensedVoltage(const std::vector<T76::SCPI::ParameterValue> &params) {
+    _usbInterface.sendUSBTMCBulkData(std::to_string(_buckConverter.sensedVoltage()));
+}
+
 bool App::activate() {
     return true;
 }

@@ -260,7 +260,7 @@ void __t76_abort_impl(const char *file, int line, const char *func);
  * @note Never returns - triggers system reset through safety system
  * 
  */
-#define abort() __t76_abort_impl(__FILE__, __LINE__, __FUNCTION__)
+// #define abort() __t76_abort_impl(__FILE__, __LINE__, __FUNCTION__)
 
 /**
  * @brief Assertion macro for runtime checks

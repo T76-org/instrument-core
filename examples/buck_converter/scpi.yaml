@@ -37,3 +37,54 @@ commands:
     description:  "Reset the instrument to its power-on state."
     handler:      _resetInstrument
 
+  - syntax:       "PID:KP"
+    description:  "Set the proportional gain of the PID controller."
+    handler:      _setKp
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The proportional gain value."
+
+  - syntax:       "PID:KP?"
+    description:  "Query the proportional gain of the PID controller."
+    handler:      _queryKp
+
+  - syntax:       "PID:KI"
+    description:  "Set the integral gain of the PID controller."
+    handler:      _setKi
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The integral gain value."
+
+  - syntax:       "PID:KI?"
+    description:  "Query the integral gain of the PID controller."
+    handler:      _queryKi
+
+  - syntax:       "PID:KD"
+    description:  "Set the derivative gain of the PID controller."
+    handler:      _setKd
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The derivative gain value."
+
+  - syntax:       "PID:KD?"
+    description:  "Query the derivative gain of the PID controller."
+    handler:      _queryKd
+
+  - syntax:       "SET:VOLT"
+    description:  "Set the target output voltage of the buck converter."
+    handler:      _setTargetVoltage
+    parameters:
+      - name:     "value"
+        type:     "number"
+        description: "The target voltage in volts."
+
+  - syntax:       "SET:VOLT?"
+    description:  "Query the target output voltage of the buck converter."
+    handler:      _queryTargetVoltage
+
+  - syntax:       "MEAS:VOLT?"
+    description:  "Query the sensed output voltage of the buck converter."
+    handler:      _querySensedVoltage

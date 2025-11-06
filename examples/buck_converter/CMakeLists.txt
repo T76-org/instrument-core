@@ -70,8 +70,9 @@ add_subdirectory(../../t76 build/t76_build)
 
 # Add the standard library to the build
 target_link_libraries(t76-ic-example-buck-converter
-        t76_ic
+        hardware_adc
         hardware_pwm
+        t76_ic
 )
 
 # Add the standard include files to the build

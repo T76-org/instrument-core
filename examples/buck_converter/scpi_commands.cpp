@@ -15,6 +15,15 @@ namespace T76 {
     public:
         void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setKp(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryKp(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setKi(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryKi(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setKd(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryKd(const std::vector<T76::SCPI::ParameterValue> &);
+        void _setTargetVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _queryTargetVoltage(const std::vector<T76::SCPI::ParameterValue> &);
+        void _querySensedVoltage(const std::vector<T76::SCPI::ParameterValue> &);
     };
 }
 
@@ -24,25 +33,61 @@ namespace T76::SCPI {
  * Memory Usage Estimate:
  * 
  * Trie Structure:
- *   - Total nodes: 9
- *   - Children arrays: 7
+ *   - Total nodes: 39
+ *   - Children arrays: 32
  *   - Node size: 8 bytes each
- *   - Trie memory: 72 bytes
+ *   - Trie memory: 312 bytes
  * 
  * Command System:
- *   - Commands: 2 (24 bytes)
- *   - Parameter descriptors: 0 bytes
+ *   - Commands: 11 (132 bytes)
+ *   - Parameter descriptors: 64 bytes
  *   - String literals: 0 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 96 bytes (0.00% of 2MB)
+ *   - Code/Data (Flash): 508 bytes (0.01% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
- *   - Average lookup depth: ~4.5 character comparisons
+ *   - Average lookup depth: ~6.8 character comparisons
  *   - Memory access pattern: Sequential (cache-friendly)
  *   - Space complexity: O(total_command_chars)
  */    // Parameter descriptors for each command
+    const ParameterDescriptor command_2_params[] = {
+        {
+            ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_4_params[] = {
+        {
+            ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_6_params[] = {
+        {
+            ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
+    const ParameterDescriptor command_8_params[] = {
+        {
+            ParameterType::Number,
+            .defaultValue = {.numberValue = 0},
+            .choiceCount = 0,
+            .choices = nullptr
+        },
+    };
+
     // Trie structure
     const TrieNode _node__starIDN_children[] = {
         { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 0 } // Terminal: *IDN?
@@ -63,23 +108,112 @@ namespace T76::SCPI {
         { 'I', 0, 1, _node__starI_children, 0 },
         { 'R', 0, 1, _node__starR_children, 0 }
     };
+    const TrieNode _node_MEAS_colonVOLT_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 10 } // Terminal: MEAS:VOLT?
+    };
+    const TrieNode _node_MEAS_colonVOL_children[] = {
+        { 'T', 0, 1, _node_MEAS_colonVOLT_children, 0 }
+    };
+    const TrieNode _node_MEAS_colonVO_children[] = {
+        { 'L', 0, 1, _node_MEAS_colonVOL_children, 0 }
+    };
+    const TrieNode _node_MEAS_colonV_children[] = {
+        { 'O', 0, 1, _node_MEAS_colonVO_children, 0 }
+    };
+    const TrieNode _node_MEAS_colon_children[] = {
+        { 'V', 0, 1, _node_MEAS_colonV_children, 0 }
+    };
+    const TrieNode _node_MEAS_children[] = {
+        { ':', 0, 1, _node_MEAS_colon_children, 0 }
+    };
+    const TrieNode _node_MEA_children[] = {
+        { 'S', 0, 1, _node_MEAS_children, 0 }
+    };
+    const TrieNode _node_ME_children[] = {
+        { 'A', 0, 1, _node_MEA_children, 0 }
+    };
+    const TrieNode _node_M_children[] = {
+        { 'E', 0, 1, _node_ME_children, 0 }
+    };
+    const TrieNode _node_PID_colonKD_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 7 } // Terminal: PID:KD?
+    };
+    const TrieNode _node_PID_colonKI_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 5 } // Terminal: PID:KI?
+    };
+    const TrieNode _node_PID_colonKP_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 } // Terminal: PID:KP?
+    };
+    const TrieNode _node_PID_colonK_children[] = {
+        { 'D', uint8_t(TrieNodeFlags::Terminal), 1, _node_PID_colonKD_children, 6 }, // Terminal: PID:KD
+        { 'I', uint8_t(TrieNodeFlags::Terminal), 1, _node_PID_colonKI_children, 4 }, // Terminal: PID:KI
+        { 'P', uint8_t(TrieNodeFlags::Terminal), 1, _node_PID_colonKP_children, 2 } // Terminal: PID:KP
+    };
+    const TrieNode _node_PID_colon_children[] = {
+        { 'K', 0, 3, _node_PID_colonK_children, 0 }
+    };
+    const TrieNode _node_PID_children[] = {
+        { ':', 0, 1, _node_PID_colon_children, 0 }
+    };
+    const TrieNode _node_PI_children[] = {
+        { 'D', 0, 1, _node_PID_children, 0 }
+    };
+    const TrieNode _node_P_children[] = {
+        { 'I', 0, 1, _node_PI_children, 0 }
+    };
+    const TrieNode _node_SET_colonVOLT_children[] = {
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 9 } // Terminal: SET:VOLT?
+    };
+    const TrieNode _node_SET_colonVOL_children[] = {
+        { 'T', uint8_t(TrieNodeFlags::Terminal), 1, _node_SET_colonVOLT_children, 8 } // Terminal: SET:VOLT
+    };
+    const TrieNode _node_SET_colonVO_children[] = {
+        { 'L', 0, 1, _node_SET_colonVOL_children, 0 }
+    };
+    const TrieNode _node_SET_colonV_children[] = {
+        { 'O', 0, 1, _node_SET_colonVO_children, 0 }
+    };
+    const TrieNode _node_SET_colon_children[] = {
+        { 'V', 0, 1, _node_SET_colonV_children, 0 }
+    };
+    const TrieNode _node_SET_children[] = {
+        { ':', 0, 1, _node_SET_colon_children, 0 }
+    };
+    const TrieNode _node_SE_children[] = {
+        { 'T', 0, 1, _node_SET_children, 0 }
+    };
+    const TrieNode _node_S_children[] = {
+        { 'E', 0, 1, _node_SE_children, 0 }
+    };
     const TrieNode _root_children[] = {
-        { '*', 0, 2, _node__star_children, 0 }
+        { '*', 0, 2, _node__star_children, 0 },
+        { 'M', 0, 1, _node_M_children, 0 },
+        { 'P', 0, 1, _node_P_children, 0 },
+        { 'S', 0, 1, _node_S_children, 0 }
     };
     template<>
-    const TrieNode T76::SCPI::Interpreter<T76::App>::_trie = { '\0', 0, 1, _root_children, 0 };
+    const TrieNode T76::SCPI::Interpreter<T76::App>::_trie = { '\0', 0, 4, _root_children, 0 };
 
     // Command handlers and parameters
     template<>
     const Command<T76::App> T76::SCPI::Interpreter<T76::App>::_commands[] = {
         { &T76::App::_queryIDN, 0, nullptr }, // *IDN?
         { &T76::App::_resetInstrument, 0, nullptr }, // *RST
+        { &T76::App::_setKp, 1, command_2_params }, // PID:KP
+        { &T76::App::_queryKp, 0, nullptr }, // PID:KP?
+        { &T76::App::_setKi, 1, command_4_params }, // PID:KI
+        { &T76::App::_queryKi, 0, nullptr }, // PID:KI?
+        { &T76::App::_setKd, 1, command_6_params }, // PID:KD
+        { &T76::App::_queryKd, 0, nullptr }, // PID:KD?
+        { &T76::App::_setTargetVoltage, 1, command_8_params }, // SET:VOLT
+        { &T76::App::_queryTargetVoltage, 0, nullptr }, // SET:VOLT?
+        { &T76::App::_querySensedVoltage, 0, nullptr }, // MEAS:VOLT?
     };
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::App>::_commandCount = 2;
+    const size_t T76::SCPI::Interpreter<T76::App>::_commandCount = 11;
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::App>::_maxParameterCount = 0;
+    const size_t T76::SCPI::Interpreter<T76::App>::_maxParameterCount = 1;
 
 } // namespace
