@@ -361,6 +361,11 @@ namespace T76::Core::USB {
         std::vector<uint8_t> _vendorControlDataInBuffer;
 
         /**
+         * @brief Buffer that stores USBTMC bulk IN data.
+         */
+        std::vector<uint8_t> _usbtmcBulkInDataBuffer;
+
+        /**
          * @brief Fixed-size queue backing USBTMC bulk IN transfers.
          */
         T76::Core::Utils::FixedSizeQueue<std::vector<uint8_t>> _usbtmcBulkInDataQueue;
