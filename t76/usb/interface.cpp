@@ -93,11 +93,16 @@ void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {
 void Interface::sendUSBTMCBulkData(std::string data, bool addNewline) {
     std::vector<uint8_t> byteData(data.begin(), data.end());
 
-    if (addNewline) {
-        byteData.push_back('\n');
-    }
+    // Append byteData to the USBTMC bulk IN buffer
 
-    _usbtmcBulkInDataQueue.push(byteData);
+    _usbtmcBulkInDataBuffer.insert(_usbtmcBulkInDataBuffer.end(), byteData.begin(), byteData.end());
+
+    if (addNewline) {
+        // Flush the current buffer with a newline to the queue
+        _usbtmcBulkInDataBuffer.push_back('\n');
+        _usbtmcBulkInDataQueue.push(_usbtmcBulkInDataBuffer);
+        _usbtmcBulkInDataBuffer.clear();
+    }
 }
 
 void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
