@@ -27,7 +27,7 @@ namespace: T76
 output_file: scpi_commands.cpp
 
 commands:
-  # Default SCPI commands
+  # Default SCPI commands 
 
   - syntax:       "*IDN?"
     description:  "Query the instrument identification string."

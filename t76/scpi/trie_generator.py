@@ -520,7 +520,7 @@ class SCPITrie:
                     }
                     cpp_type = type_mapping.get(
                         param.type, param.type.capitalize())
-                    code += f"            ParameterType::{cpp_type},\n"
+                    code += f"            .type = ParameterType::{cpp_type},\n"
 
                     # Generate default value
                     if param.default is not None:

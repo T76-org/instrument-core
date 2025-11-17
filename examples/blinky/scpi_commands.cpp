@@ -53,7 +53,7 @@ namespace T76::SCPI {
 
     const ParameterDescriptor command_2_params[] = {
         {
-            ParameterType::Enum,
+            .type = ParameterType::Enum,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 3,
             .choices = command_2_param_0_choices
