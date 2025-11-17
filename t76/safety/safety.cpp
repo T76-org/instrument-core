@@ -93,7 +93,7 @@ namespace T76::Core::Safety {
                 uint32_t index = gSharedFaultSystem->rebootCount;
                 // Copy the entire fault info structure to history
                 gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
-                gSharedFaultSystem->rebootCount++;
+                gSharedFaultSystem->rebootCount = gSharedFaultSystem->rebootCount + 1;
             }
             
             critical_section_exit(&gSafetyCriticalSection);
@@ -167,7 +167,7 @@ namespace T76::Core::Safety {
                 if (gSharedFaultSystem->rebootCount < T76_SAFETY_MAX_REBOOTS) {
                     uint32_t index = gSharedFaultSystem->rebootCount;
                     gSharedFaultSystem->faultHistory[index] = gSharedFaultSystem->lastFaultInfo;
-                    gSharedFaultSystem->rebootCount++;
+                    gSharedFaultSystem->rebootCount = gSharedFaultSystem->rebootCount + 1;
                 }
                 
                 critical_section_exit(&gSafetyCriticalSection);
