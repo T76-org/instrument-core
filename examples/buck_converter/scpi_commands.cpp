@@ -54,7 +54,7 @@ namespace T76::SCPI {
  */    // Parameter descriptors for each command
     const ParameterDescriptor command_2_params[] = {
         {
-            ParameterType::Number,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
             .choices = nullptr
@@ -63,7 +63,7 @@ namespace T76::SCPI {
 
     const ParameterDescriptor command_4_params[] = {
         {
-            ParameterType::Number,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
             .choices = nullptr
@@ -72,7 +72,7 @@ namespace T76::SCPI {
 
     const ParameterDescriptor command_6_params[] = {
         {
-            ParameterType::Number,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
             .choices = nullptr
@@ -81,7 +81,7 @@ namespace T76::SCPI {
 
     const ParameterDescriptor command_8_params[] = {
         {
-            ParameterType::Number,
+            .type = ParameterType::Number,
             .defaultValue = {.numberValue = 0},
             .choiceCount = 0,
             .choices = nullptr

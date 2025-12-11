@@ -11,11 +11,9 @@
 #include <task.h>
 #include <tusb.h>
 
-#include <pico/cyw43_arch.h>
-#include <pico/status_led.h>
-
 
 using namespace T76;
+
 
 App::App() : _interpreter(*this) {
 }
@@ -89,7 +87,6 @@ const char* App::getComponentName() const {
 void App::_init() {
     // Initialize stdio and status LED
     stdio_init_all();
-    status_led_init();
 }
 
 void App::_initCore0() {
@@ -100,7 +97,6 @@ void App::_startCore1() {
     _buckConverter.start();
 
     for(;;) {
-        status_led_set_state(!status_led_get_state()); // Toggle status LED to indicate Core 1 is running
         sleep_ms(100); // Allow time for the watchdog to be fed
     }
 }

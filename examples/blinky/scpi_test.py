@@ -1,5 +1,4 @@
 import argparse
-import usb
 import pyvisa
 
 DEFAULT_RESOURCE_FRAGMENT = "USB0::0x2E8A::0x000A"
@@ -42,6 +41,11 @@ def main() -> None:
         default=DEFAULT_RESOURCE_FRAGMENT,
         help="Substring used to select the VISA resource.",
     )
+    parser.add_argument(
+        "-crash",
+        action="store_true",
+        help="Intentionally crash the system to test fault handling.",
+    )
     args = parser.parse_args()
 
     if args.reset:
@@ -50,6 +54,8 @@ def main() -> None:
         command = "*RST"
     elif args.led is not None:
         command = "LED:STAT?" if args.led == "query" else f"LED:STAT {args.led}"
+    elif args.crash:
+        command = "SYS:CRASH"
     else:
         command = "*IDN?"
 

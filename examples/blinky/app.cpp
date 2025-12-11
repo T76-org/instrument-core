@@ -17,6 +17,23 @@
 
 using namespace T76;
 
+
+extern "C" {
+    void _t76_status_update() {
+        // Override the weak status update function to toggle the status LED
+        
+        static bool initialized = false;
+
+        if (!initialized) {
+            status_led_init();
+            initialized = true;
+        }
+
+        status_led_set_state(!status_led_get_state());
+    }
+}
+
+
 App::App() : _interpreter(*this) {
 }
 
@@ -52,6 +69,10 @@ void App::_setLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
 void App::_queryLEDState(const std::vector<T76::SCPI::ParameterValue> &params) {
     std::string stateStr = std::string(LEDStateToString(_ledState));
     _usbInterface.sendUSBTMCBulkData(stateStr);
+}
+
+void App::_crashSystem(const std::vector<T76::SCPI::ParameterValue> &params) {
+    triggerMemManageFault();
 }
 
 bool App::activate() {

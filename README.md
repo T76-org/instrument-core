@@ -167,6 +167,12 @@ A convenient macro, `T76_ASSERT(expr, reason)`, is provided to simplify fault tr
 
 Unlike the standard C library `assert()` macro, which may be disabled in release builds, the `T76_ASSERT` macro is always active, ensuring that critical safety checks are enforced in all build configurations.
 
+### Providing feedback on faults
+
+The safety system calls the _t76_status_update() function periodically whenever a fault is active. You can override this function in your application code to provide custom feedback on the system status during fault conditions. This can be useful for updating status indicators, logging information, or notifying users of the fault state.
+
+You can see how this can be done in the `blinky` example application included with the IC.
+
 ### Enhanced abort() function
 
 The safety system provides an enhanced `abort()` function that captures detailed location information when called. Unlike the standard C library `abort()` function, which cannot capture caller information, the safety system's version automatically records the file, line number, and function name where `abort()` was called.
