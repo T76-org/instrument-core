@@ -35,9 +35,7 @@
 #include <task.h>
 #include <tusb.h>
 
-#include <pico/cyw43_arch.h>
 #include <pico/multicore.h>
-#include <pico/status_led.h>
 
 #include <t76/memory.hpp>
 #include <t76/safety.hpp>

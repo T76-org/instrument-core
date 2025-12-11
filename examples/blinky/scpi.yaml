@@ -48,6 +48,10 @@ commands:
         choices:     ["ON", "OFF", "BLINK"]
         description: "The desired LED state."
 
+  - syntax:       "SYS:CRASH"
+    description:  "Intentionally crash the system to test fault handling."
+    handler:      _crashSystem
+
   - syntax:       "LED:STATe?"
     description:  "Query the current status of the instrument's LED. Returns one of 'ON', 'OFF', or 'BLINK'."
     handler:      _queryLEDState

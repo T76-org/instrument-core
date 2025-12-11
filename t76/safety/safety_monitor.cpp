@@ -17,12 +17,25 @@
 // Pico SDK includes
 #include <pico/stdlib.h>
 #include <pico/time.h>
-#include <pico/cyw43_arch.h>
-#include <pico/status_led.h>
 #include <tusb.h>
 
 
 #include "t76/safety.hpp"
+
+
+/**
+ *@brief Forward declaration of the status update function.
+ * 
+ * This function is responsible for signaling the system's state
+ * in case of a fault condition.
+ */
+extern "C" {
+    __attribute__((weak))
+    void _t76_status_update() {
+        
+    }
+}
+
 
 namespace T76::Core {
 
@@ -174,8 +187,7 @@ namespace T76::Core {
             printFaultHistoryToConsole();
             
             while (true) {
-                // Toggle status LED to indicate fault state
-                status_led_set_state(!status_led_get_state());
+                _t76_status_update(); // Update status LED state
                 
                 printf("REBOOT LIMIT EXCEEDED - System Halted\n");
                 printf("Consecutive faults: %lu (limit: %d)\n", 
@@ -223,9 +235,6 @@ namespace T76::Core {
             // Initialize stdio for output
             stdio_init_all();
             
-            // Initialize status LED for visual indication
-            status_led_init();
-
             // Create FreeRTOS tasks for Safety Monitor operation
             xTaskCreate(
                 tinyUSBTask,

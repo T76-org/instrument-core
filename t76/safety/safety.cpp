@@ -18,8 +18,6 @@
 #include <pico/stdlib.h>
 #include <pico/time.h>
 #include <pico/critical_section.h>
-#include <pico/cyw43_arch.h>
-#include <pico/status_led.h>
 
 #include <hardware/watchdog.h>
 

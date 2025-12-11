@@ -69,6 +69,8 @@ add_subdirectory(../../t76 build/t76_build)
 
 # Add the standard library to the build
 target_link_libraries(t76-ic-example-blinky
+        pico_cyw43_arch_none
+        pico_status_led
         t76_ic
 )
 

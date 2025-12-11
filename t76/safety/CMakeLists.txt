@@ -55,9 +55,7 @@ target_compile_definitions(${LIBRARY_NAME} PUBLIC
 target_link_libraries(${LIBRARY_NAME} PUBLIC
     FreeRTOS-Kernel
     FreeRTOS-Kernel-Heap4
-    pico_cyw43_arch_none
     pico_multicore
-    pico_status_led
     pico_stdio_usb
     pico_stdlib
 )

@@ -16,6 +16,7 @@ namespace T76 {
         void _queryIDN(const std::vector<T76::SCPI::ParameterValue> &);
         void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &);
         void _setLEDState(const std::vector<T76::SCPI::ParameterValue> &);
+        void _crashSystem(const std::vector<T76::SCPI::ParameterValue> &);
         void _queryLEDState(const std::vector<T76::SCPI::ParameterValue> &);
     };
 }
@@ -26,22 +27,22 @@ namespace T76::SCPI {
  * Memory Usage Estimate:
  * 
  * Trie Structure:
- *   - Total nodes: 20
- *   - Children arrays: 16
+ *   - Total nodes: 29
+ *   - Children arrays: 24
  *   - Node size: 8 bytes each
- *   - Trie memory: 160 bytes
+ *   - Trie memory: 232 bytes
  * 
  * Command System:
- *   - Commands: 4 (48 bytes)
+ *   - Commands: 5 (60 bytes)
  *   - Parameter descriptors: 16 bytes
  *   - String literals: 13 bytes
  * 
  * Total Memory Usage:
- *   - Code/Data (Flash): 237 bytes (0.01% of 2MB)
+ *   - Code/Data (Flash): 321 bytes (0.01% of 2MB)
  *   - Runtime (SRAM): 64 bytes (0.01% of 264KB)
  * 
  * Performance Characteristics:
- *   - Average lookup depth: ~7.5 character comparisons
+ *   - Average lookup depth: ~7.7 character comparisons
  *   - Memory access pattern: Sequential (cache-friendly)
  *   - Space complexity: O(total_command_chars)
  */    // Parameter descriptors for each command
@@ -81,10 +82,10 @@ namespace T76::SCPI {
         { 'R', 0, 1, _node__starR_children, 0 }
     };
     const TrieNode _node_LED_colonSTATE_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 } // Terminal: LED:STATe?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 4 } // Terminal: LED:STATe?
     };
     const TrieNode _node_LED_colonSTAT_children[] = {
-        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 }, // Terminal: LED:STATe?
+        { '?', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 4 }, // Terminal: LED:STATe?
         { 'E', uint8_t(TrieNodeFlags::Terminal), 1, _node_LED_colonSTATE_children, 2 } // Terminal: LED:STATe
     };
     const TrieNode _node_LED_colonSTA_children[] = {
@@ -108,12 +109,37 @@ namespace T76::SCPI {
     const TrieNode _node_L_children[] = {
         { 'E', 0, 1, _node_LE_children, 0 }
     };
+    const TrieNode _node_SYS_colonCRAS_children[] = {
+        { 'H', uint8_t(TrieNodeFlags::Terminal), 0, nullptr, 3 } // Terminal: SYS:CRASH
+    };
+    const TrieNode _node_SYS_colonCRA_children[] = {
+        { 'S', 0, 1, _node_SYS_colonCRAS_children, 0 }
+    };
+    const TrieNode _node_SYS_colonCR_children[] = {
+        { 'A', 0, 1, _node_SYS_colonCRA_children, 0 }
+    };
+    const TrieNode _node_SYS_colonC_children[] = {
+        { 'R', 0, 1, _node_SYS_colonCR_children, 0 }
+    };
+    const TrieNode _node_SYS_colon_children[] = {
+        { 'C', 0, 1, _node_SYS_colonC_children, 0 }
+    };
+    const TrieNode _node_SYS_children[] = {
+        { ':', 0, 1, _node_SYS_colon_children, 0 }
+    };
+    const TrieNode _node_SY_children[] = {
+        { 'S', 0, 1, _node_SYS_children, 0 }
+    };
+    const TrieNode _node_S_children[] = {
+        { 'Y', 0, 1, _node_SY_children, 0 }
+    };
     const TrieNode _root_children[] = {
         { '*', 0, 2, _node__star_children, 0 },
-        { 'L', 0, 1, _node_L_children, 0 }
+        { 'L', 0, 1, _node_L_children, 0 },
+        { 'S', 0, 1, _node_S_children, 0 }
     };
     template<>
-    const TrieNode T76::SCPI::Interpreter<T76::App>::_trie = { '\0', 0, 2, _root_children, 0 };
+    const TrieNode T76::SCPI::Interpreter<T76::App>::_trie = { '\0', 0, 3, _root_children, 0 };
 
     // Command handlers and parameters
     template<>
@@ -121,11 +147,12 @@ namespace T76::SCPI {
         { &T76::App::_queryIDN, 0, nullptr }, // *IDN?
         { &T76::App::_resetInstrument, 0, nullptr }, // *RST
         { &T76::App::_setLEDState, 1, command_2_params }, // LED:STATe
+        { &T76::App::_crashSystem, 0, nullptr }, // SYS:CRASH
         { &T76::App::_queryLEDState, 0, nullptr }, // LED:STATe?
     };
 
     template<>
-    const size_t T76::SCPI::Interpreter<T76::App>::_commandCount = 4;
+    const size_t T76::SCPI::Interpreter<T76::App>::_commandCount = 5;
 
     template<>
     const size_t T76::SCPI::Interpreter<T76::App>::_maxParameterCount = 1;

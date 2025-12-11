@@ -64,6 +64,7 @@ namespace T76 {
         void _resetInstrument(const std::vector<T76::SCPI::ParameterValue> &params);
         void _setLEDState(const std::vector<T76::SCPI::ParameterValue> &params);
         void _queryLEDState(const std::vector<T76::SCPI::ParameterValue> &params);
+        void _crashSystem(const std::vector<T76::SCPI::ParameterValue> &params);
 
         bool activate();
         void makeSafe();
