@@ -100,6 +100,7 @@
 
 
 #include <memory>
+#include <atomic>
 #include <queue>
 #include <stdint.h>
 #include <string>
@@ -292,10 +293,12 @@ namespace T76::Core::USB {
 
         /**
          * @brief Send a USBTMC SRQ interrupt to the USB host.
-         * 
+         *
          * @param srq The SRQ value to be sent.
+         * @return true if the interrupt transfer was started immediately,
+         *         false if it was deferred.
          */
-        void sendUSBTMCSRQInterrupt(const uint8_t srq);
+        bool sendUSBTMCSRQInterrupt(const uint8_t srq);
 
     protected:
 
@@ -412,6 +415,18 @@ namespace T76::Core::USB {
          * @brief Cached SRQ interrupt payload for USBTMC notifications.
          */
         usbtmc_srq_interrupt_488_t _usbtmcSRQInterruptData;
+
+        /**
+         * @brief Tracks whether a USBTMC notification is queued for transmission.
+         */
+        std::atomic<bool> _usbtmcSRQPending{false};
+
+        /**
+         * @brief Transmit a queued SRQ notification if the interrupt endpoint is idle.
+         *
+         * @return true if a transfer was started, false otherwise.
+         */
+        bool _trySendUSBTMCSRQInterrupt();
 
         /**
          * @brief The runtime task.

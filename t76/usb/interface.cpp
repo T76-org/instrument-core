@@ -105,9 +105,18 @@ void Interface::sendUSBTMCBulkData(std::string data, bool addNewline) {
     }
 }
 
-void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
+bool Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     _usbtmcSRQInterruptData.bNotify1 = USB488_bNOTIFY1_SRQ;
     _usbtmcSRQInterruptData.StatusByte = srq;
+    _usbtmcSRQPending.store(true, std::memory_order_release);
+
+    return _trySendUSBTMCSRQInterrupt();
+}
+
+bool Interface::_trySendUSBTMCSRQInterrupt() {
+    if (!_usbtmcSRQPending.load(std::memory_order_acquire)) {
+        return false;
+    }
 
     // A bug in TinyUSB (see https://github.com/hathach/tinyusb/issues/2735)
     // forces us to hack around the fact that the following call:
@@ -123,11 +132,17 @@ void Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     uint8_t rhport = 0;
     uint8_t endpoint = EPNUM_USBTMC_INT;
 
-    if (!usbd_edpt_busy(rhport, endpoint)) {
-        if (!usbd_edpt_xfer(rhport, endpoint, reinterpret_cast<uint8_t*>(&_usbtmcSRQInterruptData), (uint16_t)sizeof(_usbtmcSRQInterruptData))) {
-            //TODO: Log error
-        }
+    if (usbd_edpt_busy(rhport, endpoint)) {
+        return false;
     }
+
+    if (!usbd_edpt_xfer(rhport, endpoint, reinterpret_cast<uint8_t*>(&_usbtmcSRQInterruptData), (uint16_t)sizeof(_usbtmcSRQInterruptData))) {
+        //TODO: Log error
+        return false;
+    }
+
+    _usbtmcSRQPending.store(false, std::memory_order_release);
+    return true;
 }
 
 void Interface::_runtimeTask() {
@@ -396,6 +411,7 @@ bool Interface::_usbtmcCheckAbortBulkOut(usbtmc_check_abort_bulk_rsp_t *rsp) {
 }
 
 bool Interface::_usbtmcNotificationComplete() {
+    _trySendUSBTMCSRQInterrupt();
     return true;
 }
 
