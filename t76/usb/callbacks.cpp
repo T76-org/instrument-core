@@ -16,16 +16,6 @@ extern "C" bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_c
     return Interface::_singleton->_vendorControlTransfer(rhport, stage, request);
 }
 
-extern "C" void tud_mount_cb(void) {
-    tud_cdc_n_read_flush(0);
-    tud_cdc_n_write_clear(0);
-}
-
-extern "C" void tud_umount_cb(void) {
-    tud_cdc_n_read_flush(0);
-    tud_cdc_n_write_clear(0);
-}
-
 extern "C" usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void) {
     return Interface::_singleton->_usbtmcCapabilities();
 }

@@ -361,6 +361,8 @@ bool Interface::_usbtmcInitiateClear(uint8_t *tmcResult) {
     _usbtmcBulkInDataPending.clear();
     _usbtmcBulkInPendingOffset = 0;
 
+    _delegate._onUSBTMCClear(); // Notify the delegate about the clear operation
+
     tud_usbtmc_start_bus_read(); // Start reading from the USBTMC bus
 
     return true;
@@ -384,6 +386,8 @@ bool Interface::_usbtmcInitiateAbortBulkIn(uint8_t *tmcResult) {
     _usbtmcBulkInDataPending.clear();
     _usbtmcBulkInPendingOffset = 0;
 
+    _delegate._onUSBTMCAbortBulkIn(); // Notify the delegate about the abort
+
     return true;
 }
 
@@ -399,6 +403,8 @@ bool Interface::_usbtmcInitiateAbortBulkOut(uint8_t *tmcResult) {
     // Initiate USBTMC abort bulk OUT operation
 
     *tmcResult = USBTMC_STATUS_SUCCESS;
+
+    _delegate._onUSBTMCAbortBulkOut(); // Notify the delegate about the abort
 
     return true;
 }

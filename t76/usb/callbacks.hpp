@@ -13,9 +13,6 @@ extern "C" {
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
 
-void tud_mount_cb(void);
-void tud_umount_cb(void);
-
 // USBTMC callbacks
 
 usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void);

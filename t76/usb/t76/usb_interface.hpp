@@ -182,6 +182,32 @@ namespace T76::Core::USB {
          * 
          */
         virtual void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) = 0;
+
+        /**
+         * @brief USBTMC message trigger callback.
+         * 
+         * @param msg The USBTMC message that was received.
+         * 
+         * This method is called when a USBTMC message is received from the USB host. You can implement
+         * this method in a subclass to handle the received message and perform any necessary processing.
+         */
+        virtual void _onUSBTMCAbortBulkIn() = 0;
+
+        /**
+         * @brief USBTMC abort bulk OUT callback.
+         * 
+         * This method is called when a USBTMC abort bulk OUT message is received from the USB host. You can implement
+         * this method in a subclass to handle the abort request and perform any necessary processing.
+         */
+        virtual void _onUSBTMCAbortBulkOut() = 0;
+
+        /**
+         * @brief USBTMC clear callback.
+         * 
+         * This method is called when a USBTMC clear message is received from the USB host. You can implement
+         * this method in a subclass to handle the clear request and perform any necessary processing.
+         */
+        virtual void _onUSBTMCClear() = 0;
     };
 
     /**

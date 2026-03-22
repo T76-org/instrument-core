@@ -220,6 +220,21 @@ namespace T76::Core {
          * @param transfer_complete Whether the transfer is complete
          */
         virtual void _onUSBTMCDataReceived(const std::vector<uint8_t> &data, bool transfer_complete) override { }
+
+        /**
+         * @brief Called when a USBTMC abort bulk IN message is received
+         */
+        virtual void _onUSBTMCAbortBulkIn() override { }
+
+        /**
+         * @brief Called when a USBTMC abort bulk OUT message is received
+         */
+        virtual void _onUSBTMCAbortBulkOut() override { }
+
+        /**
+        * @brief Called when a USBTMC clear message is received
+        */
+        virtual void _onUSBTMCClear() override { }
     };
     
 } // namespace T76::Core
