@@ -12,6 +12,9 @@ extern "C" {
 
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+void t76_winusb_rx_cb(uint8_t const* buffer, uint16_t bufsize);
+bool t76_winusb_bulk_in_send(uint8_t const* buffer, uint16_t bufsize);
+bool t76_winusb_interrupt_send(uint8_t const* buffer, uint16_t bufsize);
 
 // USBTMC callbacks
 
@@ -37,4 +40,3 @@ bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *
 #ifdef __cplusplus
 }
 #endif
-

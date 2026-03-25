@@ -62,7 +62,15 @@ uint8_t const *tud_descriptor_device_cb(void) {
 
 #define RPI_RESET_DESCRIPTOR_LEN 9
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + RPI_RESET_DESCRIPTOR_LEN + TUD_VENDOR_DESC_LEN + TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN)
+#define WINUSB_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epint, _epsize) \
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 3, TUSB_CLASS_VENDOR_SPECIFIC, WINUSB_INTERFACE_SUBCLASS, WINUSB_INTERFACE_PROTOCOL, _stridx, \
+  7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, TU_U16_LOW(_epsize), TU_U16_HIGH(_epsize), 0, \
+  7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, TU_U16_LOW(_epsize), TU_U16_HIGH(_epsize), 0, \
+  7, TUSB_DESC_ENDPOINT, _epint, TUSB_XFER_INTERRUPT, TU_U16_LOW(_epsize), TU_U16_HIGH(_epsize), 1
+
+#define WINUSB_DESCRIPTOR_LEN 30
+
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + RPI_RESET_DESCRIPTOR_LEN + TUD_VENDOR_DESC_LEN + TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN + WINUSB_DESCRIPTOR_LEN)
 
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
@@ -79,6 +87,8 @@ uint8_t const desc_fs_configuration[] = {
     TUD_USBTMC_IF_DESCRIPTOR(ITF_NUM_USBTMC, 3, 7, TUD_USBTMC_PROTOCOL_USB488),
     TUD_USBTMC_BULK_DESCRIPTORS(EPNUM_USBTMC_OUT, EPNUM_USBTMC_IN, ITF_BUFFER_SIZE),
     TUD_USBTMC_INT_DESCRIPTOR(EPNUM_USBTMC_INT, 64, 0x1),
+
+    WINUSB_DESCRIPTOR(ITF_NUM_WINUSB, 8, EPNUM_WINUSB_OUT, EPNUM_WINUSB_IN, EPNUM_WINUSB_INT, ITF_BUFFER_SIZE),
 };
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
@@ -98,6 +108,7 @@ enum {
   RESET_INTERFACE,
   VENDOR_INTERFACE,
   USBTMC_INTERFACE,
+  WINUSB_INTERFACE,
   STRING_COUNT
 };
 
@@ -111,6 +122,7 @@ char const* string_desc_arr [] = {
   "Reset",                         // 5: Reset Interface
   "Vendor",                         // 6: Vendor Interface
   "USBTMC",                        // 7: USBTMC Interface
+  "WinUSB",                        // 8: WinUSB Interface
 };
 
 static uint16_t _desc_str[32];

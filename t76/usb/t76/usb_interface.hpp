@@ -19,6 +19,8 @@
  *   functionality, such as USBTMC compatibility.
  * - A USBTMC interface that provides a standard interface for test and 
  *   measurement devices.
+ * - A WinUSB-compatible vendor interface that exposes dedicated bulk and
+ *   interrupt endpoints for Windows-native frontend access.
  * 
  * The runtime is multithreaded and fully reentrant, allowing you to
  * send and receive data from multiple threads without blocking. It uses
@@ -208,6 +210,14 @@ namespace T76::Core::USB {
          * this method in a subclass to handle the clear request and perform any necessary processing.
          */
         virtual void _onUSBTMCClear() = 0;
+
+        /**
+         * @brief WinUSB bulk data received callback.
+         *
+         * This method is called when data is received on the dedicated WinUSB
+         * transport interface.
+         */
+        virtual void _onWinUSBDataReceived(const std::vector<uint8_t> &data) { }
     };
 
     /**
@@ -297,6 +307,20 @@ namespace T76::Core::USB {
         bool sendVendorControlTransferData(uint8_t port, const tusb_control_request_t *request, const std::vector<uint8_t> &data);
 
         /**
+         * @brief Send bulk data to the WinUSB-compatible interface.
+         *
+         * @param data Payload to send to the host over the dedicated WinUSB bulk IN endpoint.
+         */
+        void sendWinUSBBulkData(const std::vector<uint8_t> &data);
+
+        /**
+         * @brief Send interrupt data to the WinUSB-compatible interface.
+         *
+         * @param data Payload to send to the host over the dedicated WinUSB interrupt IN endpoint.
+         */
+        void sendWinUSBInterruptData(const std::vector<uint8_t> &data);
+
+        /**
          * @brief Send USBTMC bulk data to the USB host.
          * @param data The data to be sent. The function takes ownership of the data
          *            and will copy it to the USBTMC buffer asynchronously.
@@ -344,6 +368,9 @@ namespace T76::Core::USB {
         enum class DispatchType {
             DataReceived,
             SendData,
+            WinUSBDataReceived,
+            SendWinUSBBulkData,
+            SendWinUSBInterruptData,
         };
 
         /**
@@ -501,6 +528,14 @@ namespace T76::Core::USB {
          * @param bufsize The size of the received data buffer.
          */
         void _vendorDataReceived(uint8_t itf, uint8_t* buffer, uint16_t bufsize);
+
+        /**
+         * @brief Handle WinUSB bulk OUT data received.
+         *
+         * @param buffer The buffer containing the received payload.
+         * @param bufsize Size of the received payload in bytes.
+         */
+        void _winusbDataReceived(uint8_t const* buffer, uint16_t bufsize);
 
         /**
          * @brief Handle vendor control transfer.
@@ -729,6 +764,7 @@ namespace T76::Core::USB {
 
         friend void ::tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
         friend bool ::tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+        friend void ::t76_winusb_rx_cb(uint8_t const* buffer, uint16_t bufsize);
 
         // USBTMC interface callbacks
 
