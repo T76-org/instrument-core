@@ -214,6 +214,48 @@ namespace T76::Core {
         virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) override { return false; }
 
         /**
+         * @brief Called when a control transfer IN request is received on the
+         *        WinUSB interface.
+         *
+         * @param port The USB root port servicing the request.
+         * @param request A pointer to the received control request.
+         * @return true if the request was handled, false otherwise.
+         */
+        virtual bool _onWinUSBControlTransferIn(uint8_t port, const tusb_control_request_t *request) override { return false; }
+
+        /**
+         * @brief Called when a control transfer OUT request is received on the
+         *        WinUSB interface.
+         *
+         * @param request The request code received from the host.
+         * @param value The control transfer value field.
+         * @param data The payload received from the host.
+         * @return true if the request was handled, false otherwise.
+         */
+        virtual bool _onWinUSBControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) override { return false; }
+
+        /**
+         * @brief Called when a raw bulk packet is received on the WinUSB interface.
+         *
+         * @param data The raw packet payload received from the host.
+         */
+        virtual void _onWinUSBBulkDataReceived(const std::vector<uint8_t> &data) override { }
+
+        /**
+         * @brief Called when a WinUSB bulk IN transfer completes.
+         *
+         * @param xferred_bytes The number of bytes transferred to the host.
+         */
+        virtual void _onWinUSBBulkInComplete(uint32_t xferred_bytes) override { }
+
+        /**
+         * @brief Called when a WinUSB interrupt IN transfer completes.
+         *
+         * @param xferred_bytes The number of bytes transferred to the host.
+         */
+        virtual void _onWinUSBInterruptComplete(uint32_t xferred_bytes) override { }
+
+        /**
          * @brief Called when data is received on the USBTMC interface's bulk endpoint
          * 
          * @param data The data received

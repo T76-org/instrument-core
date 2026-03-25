@@ -12,9 +12,56 @@ extern "C" {
 
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
-void t76_winusb_rx_cb(uint8_t const* buffer, uint16_t bufsize);
-bool t76_winusb_bulk_in_send(uint8_t const* buffer, uint16_t bufsize);
-bool t76_winusb_interrupt_send(uint8_t const* buffer, uint16_t bufsize);
+
+/**
+ * @brief Route a control transfer to the WinUSB interface handler.
+ *
+ * @param rhport The USB root port handling the request.
+ * @param stage The current control transfer stage.
+ * @param request The control request descriptor from the host.
+ * @return true if the request was handled, false otherwise.
+ */
+bool t76_winusb_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+
+/**
+ * @brief Notify the runtime that a WinUSB bulk OUT packet was received.
+ *
+ * @param buffer Pointer to the received packet bytes.
+ * @param bufsize Number of bytes in the received packet.
+ */
+void t76_winusb_bulk_out_received_cb(uint8_t const* buffer, uint16_t bufsize);
+
+/**
+ * @brief Notify the runtime that a WinUSB bulk IN transfer completed.
+ *
+ * @param xferred_bytes Number of bytes transferred to the host.
+ */
+void t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes);
+
+/**
+ * @brief Notify the runtime that a WinUSB interrupt IN transfer completed.
+ *
+ * @param xferred_bytes Number of bytes transferred to the host.
+ */
+void t76_winusb_interrupt_complete_cb(uint32_t xferred_bytes);
+
+/**
+ * @brief Start a WinUSB bulk IN transfer.
+ *
+ * @param buffer Pointer to the payload to send.
+ * @param bufsize Number of bytes to transfer.
+ * @return true if the transfer was started, false otherwise.
+ */
+bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize);
+
+/**
+ * @brief Start a WinUSB interrupt IN transfer.
+ *
+ * @param buffer Pointer to the payload to send.
+ * @param bufsize Number of bytes to transfer.
+ * @return true if the transfer was started, false otherwise.
+ */
+bool t76_winusb_interrupt_xfer(uint8_t const* buffer, uint16_t bufsize);
 
 // USBTMC callbacks
 

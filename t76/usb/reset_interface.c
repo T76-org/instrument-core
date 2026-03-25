@@ -165,10 +165,8 @@ static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_des
 
 // Support for parameterized reset via vendor interface control request
 static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_control_request_t const * request) {
-    // nothing to do with DATA & ACK stage
-    if (stage != CONTROL_STAGE_SETUP) return true;
-
     if (request->wIndex == reset_interface_number) {
+        if (stage != CONTROL_STAGE_SETUP) return true;
 
         if (request->bRequest == RESET_REQUEST_BOOTSEL) {
             int gpio = -1;
@@ -186,16 +184,31 @@ static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_
             return true;
         }
     }
+
+    if (request->wIndex == winusb_interface_number) {
+        return t76_winusb_control_xfer_cb(rhport, stage, request);
+    }
+
     return false;
 }
 
 static bool resetd_xfer_cb(uint8_t __unused rhport, uint8_t __unused ep_addr, xfer_result_t __unused result, uint32_t __unused xferred_bytes) {
     if (ep_addr == winusb_ep_out_address) {
         if (xferred_bytes > 0) {
-            t76_winusb_rx_cb(winusb_ep_out_buffer, (uint16_t) xferred_bytes);
+            t76_winusb_bulk_out_received_cb(winusb_ep_out_buffer, (uint16_t) xferred_bytes);
         }
 
         return usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer));
+    }
+
+    if (ep_addr == winusb_ep_in_address) {
+        t76_winusb_bulk_in_complete_cb(xferred_bytes);
+        return true;
+    }
+
+    if (ep_addr == winusb_ep_interrupt_address) {
+        t76_winusb_interrupt_complete_cb(xferred_bytes);
+        return true;
     }
 
     return true;
@@ -216,7 +229,7 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
     return &_resetd_driver;
 }
 
-bool t76_winusb_bulk_in_send(uint8_t const* buffer, uint16_t bufsize) {
+bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize) {
     TU_VERIFY(winusb_ep_in_address != 0, false);
     TU_VERIFY(bufsize <= sizeof(winusb_ep_in_buffer), false);
     TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_in_address), false);
@@ -225,7 +238,7 @@ bool t76_winusb_bulk_in_send(uint8_t const* buffer, uint16_t bufsize) {
     return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, bufsize);
 }
 
-bool t76_winusb_interrupt_send(uint8_t const* buffer, uint16_t bufsize) {
+bool t76_winusb_interrupt_xfer(uint8_t const* buffer, uint16_t bufsize) {
     TU_VERIFY(winusb_ep_interrupt_address != 0, false);
     TU_VERIFY(bufsize <= sizeof(winusb_ep_interrupt_buffer), false);
     TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_interrupt_address), false);

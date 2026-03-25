@@ -91,6 +91,19 @@ bool Interface::sendVendorControlTransferData(uint8_t port, const tusb_control_r
     return false; // Only IN transfers are supported for control transfers
 }
 
+bool Interface::sendWinUSBControlTransferData(uint8_t port, const tusb_control_request_t *request, const std::vector<uint8_t> &data) {
+    if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
+        if (data.size() != request->wLength) {
+            return false;
+        }
+
+        _winusbControlDataOutBuffer = data;
+        return tud_control_xfer(port, request, static_cast<void*>(_winusbControlDataOutBuffer.data()), _winusbControlDataOutBuffer.size());
+    }
+
+    return false;
+}
+
 void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
     DispatchItem *item = new DispatchItem;
 
@@ -209,18 +222,26 @@ void Interface::_dispatchTask() {
                     }
                     break;
 
-                case DispatchType::WinUSBDataReceived:
-                    _delegate._onWinUSBDataReceived(item->data);
+                case DispatchType::WinUSBBulkDataReceived:
+                    _delegate._onWinUSBBulkDataReceived(item->data);
+                    break;
+
+                case DispatchType::WinUSBBulkInComplete:
+                    _delegate._onWinUSBBulkInComplete(item->xferred_bytes);
+                    break;
+
+                case DispatchType::WinUSBInterruptComplete:
+                    _delegate._onWinUSBInterruptComplete(item->xferred_bytes);
                     break;
 
                 case DispatchType::SendWinUSBBulkData:
-                    if (!t76_winusb_bulk_in_send(item->data.data(), (uint16_t)item->data.size())) {
+                    if (!t76_winusb_bulk_in_xfer(item->data.data(), (uint16_t)item->data.size())) {
                         //TODO: Log error
                     }
                     break;
 
                 case DispatchType::SendWinUSBInterruptData:
-                    if (!t76_winusb_interrupt_send(item->data.data(), (uint16_t)item->data.size())) {
+                    if (!t76_winusb_interrupt_xfer(item->data.data(), (uint16_t)item->data.size())) {
                         //TODO: Log error
                     }
                     break;
@@ -252,13 +273,35 @@ void Interface::_vendorDataReceived(uint8_t itf, uint8_t* buffer, uint16_t bufsi
     }
 }
 
-void Interface::_winusbDataReceived(uint8_t const* buffer, uint16_t bufsize) {
+void Interface::_winusbBulkOutReceived(uint8_t const* buffer, uint16_t bufsize) {
     std::vector<uint8_t> data(buffer, buffer + bufsize);
 
     DispatchItem *item = new DispatchItem;
 
-    item->type = DispatchType::WinUSBDataReceived;
+    item->type = DispatchType::WinUSBBulkDataReceived;
     item->data = std::move(data);
+
+    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
+        delete item;
+    }
+}
+
+void Interface::_winusbBulkInComplete(uint32_t xferred_bytes) {
+    DispatchItem *item = new DispatchItem;
+
+    item->type = DispatchType::WinUSBBulkInComplete;
+    item->xferred_bytes = xferred_bytes;
+
+    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
+        delete item;
+    }
+}
+
+void Interface::_winusbInterruptComplete(uint32_t xferred_bytes) {
+    DispatchItem *item = new DispatchItem;
+
+    item->type = DispatchType::WinUSBInterruptComplete;
+    item->xferred_bytes = xferred_bytes;
 
     if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
         delete item;
@@ -325,6 +368,36 @@ bool Interface::_vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb
 
         default:
             return false; // Unsupported stage
+    }
+
+    return true;
+}
+
+bool Interface::_winusbControlTransfer(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request) {
+    switch(stage) {
+        case CONTROL_STAGE_SETUP:
+            if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
+                _winusbControlDataInBuffer.resize(request->wLength);
+                return tud_control_xfer(rhport, request, _winusbControlDataInBuffer.data(), _winusbControlDataInBuffer.size());
+            }
+
+            return _delegate._onWinUSBControlTransferIn(rhport, request);
+
+        case CONTROL_STAGE_DATA:
+            if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
+                return _delegate._onWinUSBControlTransferOut(
+                    request->bRequest,
+                    request->wValue,
+                    std::vector<uint8_t>(_winusbControlDataInBuffer.begin(), _winusbControlDataInBuffer.begin() + request->wLength)
+                );
+            }
+            break;
+
+        case CONTROL_STAGE_ACK:
+            break;
+
+        default:
+            return false;
     }
 
     return true;
