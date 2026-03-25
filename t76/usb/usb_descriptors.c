@@ -33,11 +33,9 @@ tusb_desc_device_t const desc_device = {
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x210, // USB 2.1
 
-    // Windows expects an IAD-based composite device to advertise the
-    // Miscellaneous/Common/IAD triplet at the device level.
-    .bDeviceClass       = TUSB_CLASS_MISC,
-    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+    .bDeviceClass       = 0x00,
+    .bDeviceSubClass    = 0x00,
+    .bDeviceProtocol    = 0x00,
 
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
