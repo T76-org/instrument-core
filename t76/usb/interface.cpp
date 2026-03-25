@@ -243,9 +243,8 @@ bool Interface::_processWebUSBRequest(uint8_t rhport, const tusb_control_request
 bool Interface::_vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request) {
     switch(stage) {
         case CONTROL_STAGE_SETUP:
-
-            if (request->wIndex == reset_interface_number) {
-                return _processWebUSBRequest(rhport, request);
+            if (_processWebUSBRequest(rhport, request)) {
+                return true;
             }
 
             if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {

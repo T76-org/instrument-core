@@ -33,9 +33,11 @@ tusb_desc_device_t const desc_device = {
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x210, // USB 2.1
 
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
+    // Windows expects an IAD-based composite device to advertise the
+    // Miscellaneous/Common/IAD triplet at the device level.
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
 
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
@@ -53,15 +55,6 @@ tusb_desc_device_t const desc_device = {
 uint8_t const *tud_descriptor_device_cb(void) {
   return (uint8_t const *) &desc_device;
 }
-
-enum {
-  ITF_NUM_CDC = 0,
-  ITF_NUM_CDC_DATA,
-  ITF_NUM_RESET,
-  ITF_NUM_VENDOR,
-  ITF_NUM_USBTMC,
-  ITF_NUM_TOTAL
-};
 
 #define ITF_BUFFER_SIZE     64
 
@@ -171,4 +164,3 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 
   return _desc_str;
 }
-
