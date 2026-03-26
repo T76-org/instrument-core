@@ -235,8 +235,12 @@ void Interface::_dispatchTask() {
                     break;
 
                 case DispatchType::SendWinUSBBulkData:
-                    if (!t76_winusb_bulk_in_xfer(item->data.data(), (uint16_t)item->data.size())) {
-                        //TODO: Log error
+                    for (size_t offset = 0; offset < item->data.size();) {
+                        const size_t chunkSize = std::min(item->data.size() - offset, static_cast<size_t>(CFG_TUD_VENDOR_TX_BUFSIZE));
+                        while (!t76_winusb_bulk_in_xfer(item->data.data() + offset, (uint16_t)chunkSize)) {
+                            taskYIELD();
+                        }
+                        offset += chunkSize;
                     }
                     break;
 
