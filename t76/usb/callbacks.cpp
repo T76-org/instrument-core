@@ -28,10 +28,6 @@ extern "C" void t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes) {
     Interface::_singleton->_winusbBulkInComplete(xferred_bytes);
 }
 
-extern "C" void t76_winusb_interrupt_complete_cb(uint32_t xferred_bytes) {
-    Interface::_singleton->_winusbInterruptComplete(xferred_bytes);
-}
-
 extern "C" usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void) {
     return Interface::_singleton->_usbtmcCapabilities();
 }

@@ -39,13 +39,6 @@ void t76_winusb_bulk_out_received_cb(uint8_t const* buffer, uint16_t bufsize);
 void t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes);
 
 /**
- * @brief Notify the runtime that a WinUSB interrupt IN transfer completed.
- *
- * @param xferred_bytes Number of bytes transferred to the host.
- */
-void t76_winusb_interrupt_complete_cb(uint32_t xferred_bytes);
-
-/**
  * @brief Start a WinUSB bulk IN transfer.
  *
  * @param buffer Pointer to the payload to send.
@@ -60,15 +53,6 @@ bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize);
  * @return true if the zero-length packet transfer was started, false otherwise.
  */
 bool t76_winusb_bulk_in_zlp(void);
-
-/**
- * @brief Start a WinUSB interrupt IN transfer.
- *
- * @param buffer Pointer to the payload to send.
- * @param bufsize Number of bytes to transfer.
- * @return true if the transfer was started, false otherwise.
- */
-bool t76_winusb_interrupt_xfer(uint8_t const* buffer, uint16_t bufsize);
 
 // USBTMC callbacks
 

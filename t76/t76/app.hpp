@@ -249,13 +249,6 @@ namespace T76::Core {
         virtual void _onWinUSBBulkInComplete(uint32_t xferred_bytes) override { }
 
         /**
-         * @brief Called when a WinUSB interrupt IN transfer completes.
-         *
-         * @param xferred_bytes The number of bytes transferred to the host.
-         */
-        virtual void _onWinUSBInterruptComplete(uint32_t xferred_bytes) override { }
-
-        /**
          * @brief Called when data is received on the USBTMC interface's bulk endpoint
          * 
          * @param data The data received

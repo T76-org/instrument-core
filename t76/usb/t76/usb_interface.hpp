@@ -19,8 +19,8 @@
  *   functionality, such as USBTMC compatibility.
  * - A USBTMC interface that provides a standard interface for test and 
  *   measurement devices.
- * - A WinUSB-compatible vendor interface that exposes dedicated bulk and
- *   interrupt endpoints for Windows-native frontend access.
+ * - A WinUSB-compatible vendor interface that exposes dedicated bulk endpoints
+ *   for Windows-native frontend access.
  * 
  * The runtime is multithreaded and fully reentrant, allowing you to
  * send and receive data from multiple threads without blocking. It uses
@@ -255,14 +255,6 @@ namespace T76::Core::USB {
          */
         virtual void _onWinUSBBulkInComplete(uint32_t xferred_bytes) { }
 
-        /**
-         * @brief WinUSB interrupt IN transfer completion callback.
-         *
-         * Called when a WinUSB interrupt IN transfer completes.
-         *
-         * @param xferred_bytes Number of bytes transferred to the host.
-         */
-        virtual void _onWinUSBInterruptComplete(uint32_t xferred_bytes) { }
     };
 
     /**
@@ -371,15 +363,6 @@ namespace T76::Core::USB {
         void sendWinUSBBulkData(const std::vector<uint8_t> &data);
 
         /**
-         * @brief Send interrupt data to the WinUSB-compatible interface.
-         *
-         * @param data Payload to send to the host over the dedicated WinUSB interrupt IN endpoint.
-         * @return true if the interrupt-IN transfer was started immediately,
-         *         false if the endpoint was busy or unavailable.
-         */
-        bool sendWinUSBInterruptData(const std::vector<uint8_t> &data);
-
-        /**
          * @brief Send USBTMC bulk data to the USB host.
          * @param data The data to be sent. The function takes ownership of the data
          *            and will copy it to the USBTMC buffer asynchronously.
@@ -429,9 +412,7 @@ namespace T76::Core::USB {
             SendData,
             WinUSBBulkDataReceived,
             WinUSBBulkInComplete,
-            WinUSBInterruptComplete,
             SendWinUSBBulkData,
-            SendWinUSBInterruptData,
         };
 
         /**
@@ -615,13 +596,6 @@ namespace T76::Core::USB {
          * @param xferred_bytes Number of bytes transferred.
          */
         void _winusbBulkInComplete(uint32_t xferred_bytes);
-
-        /**
-         * @brief Handle WinUSB interrupt IN transfer completion.
-         *
-         * @param xferred_bytes Number of bytes transferred.
-         */
-        void _winusbInterruptComplete(uint32_t xferred_bytes);
 
         /**
          * @brief Handle vendor control transfer.
@@ -863,7 +837,6 @@ namespace T76::Core::USB {
         friend bool ::t76_winusb_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
         friend void ::t76_winusb_bulk_out_received_cb(uint8_t const* buffer, uint16_t bufsize);
         friend void ::t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes);
-        friend void ::t76_winusb_interrupt_complete_cb(uint32_t xferred_bytes);
 
         // USBTMC interface callbacks
 

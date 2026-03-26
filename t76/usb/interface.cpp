@@ -120,10 +120,6 @@ void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
     }
 }
 
-bool Interface::sendWinUSBInterruptData(const std::vector<uint8_t> &data) {
-    return t76_winusb_interrupt_xfer(data.data(), static_cast<uint16_t>(data.size()));
-}
-
 void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {
     _usbtmcBulkInDataQueue.push(data);
 }
@@ -228,10 +224,6 @@ void Interface::_dispatchTask() {
                     _delegate._onWinUSBBulkInComplete(item->xferred_bytes);
                     break;
 
-                case DispatchType::WinUSBInterruptComplete:
-                    _delegate._onWinUSBInterruptComplete(item->xferred_bytes);
-                    break;
-
                 case DispatchType::SendWinUSBBulkData:
                     for (size_t offset = 0; offset < item->data.size();) {
                         const size_t chunkSize = std::min(item->data.size() - offset, static_cast<size_t>(CFG_TUD_VENDOR_TX_BUFSIZE));
@@ -239,12 +231,6 @@ void Interface::_dispatchTask() {
                             taskYIELD();
                         }
                         offset += chunkSize;
-                    }
-                    break;
-
-                case DispatchType::SendWinUSBInterruptData:
-                    if (!t76_winusb_interrupt_xfer(item->data.data(), (uint16_t)item->data.size())) {
-                        //TODO: Log error
                     }
                     break;
 
@@ -292,17 +278,6 @@ void Interface::_winusbBulkInComplete(uint32_t xferred_bytes) {
     DispatchItem *item = new DispatchItem;
 
     item->type = DispatchType::WinUSBBulkInComplete;
-    item->xferred_bytes = xferred_bytes;
-
-    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
-        delete item;
-    }
-}
-
-void Interface::_winusbInterruptComplete(uint32_t xferred_bytes) {
-    DispatchItem *item = new DispatchItem;
-
-    item->type = DispatchType::WinUSBInterruptComplete;
     item->xferred_bytes = xferred_bytes;
 
     if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {

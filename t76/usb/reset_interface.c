@@ -25,11 +25,9 @@ uint8_t winusb_interface_number;
 
 static uint8_t winusb_ep_out_address;
 static uint8_t winusb_ep_in_address;
-static uint8_t winusb_ep_interrupt_address;
 
 static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_out_buffer[CFG_TUD_VENDOR_EPSIZE];
 static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_in_buffer[CFG_TUD_VENDOR_TX_BUFSIZE];
-static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_interrupt_buffer[CFG_TUD_VENDOR_EPSIZE];
 
 // Support for Microsoft OS 2.0 descriptor
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
@@ -108,7 +106,6 @@ static void resetd_reset(uint8_t __unused rhport) {
     winusb_interface_number = 0;
     winusb_ep_out_address = 0;
     winusb_ep_in_address = 0;
-    winusb_ep_interrupt_address = 0;
 }
 
 static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
@@ -125,7 +122,7 @@ static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_des
 
     if (itf_desc->bInterfaceSubClass == WINUSB_INTERFACE_SUBCLASS &&
         itf_desc->bInterfaceProtocol == WINUSB_INTERFACE_PROTOCOL) {
-        TU_VERIFY(itf_desc->bNumEndpoints == 3, 0);
+        TU_VERIFY(itf_desc->bNumEndpoints == 2, 0);
 
         const uint8_t* p_desc = tu_desc_next(itf_desc);
         const uint8_t* desc_end = ((uint8_t const*) itf_desc) + max_len;
@@ -146,8 +143,6 @@ static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_des
             if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
                 winusb_ep_out_address = desc_ep->bEndpointAddress;
                 TU_ASSERT(usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer)), 0);
-            } else if (desc_ep->bmAttributes.xfer == TUSB_XFER_INTERRUPT) {
-                winusb_ep_interrupt_address = desc_ep->bEndpointAddress;
             } else {
                 winusb_ep_in_address = desc_ep->bEndpointAddress;
             }
@@ -206,11 +201,6 @@ static bool resetd_xfer_cb(uint8_t __unused rhport, uint8_t __unused ep_addr, xf
         return true;
     }
 
-    if (ep_addr == winusb_ep_interrupt_address) {
-        t76_winusb_interrupt_complete_cb(xferred_bytes);
-        return true;
-    }
-
     return true;
 }
 
@@ -243,13 +233,4 @@ bool t76_winusb_bulk_in_zlp(void) {
     TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_in_address), false);
 
     return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, 0);
-}
-
-bool t76_winusb_interrupt_xfer(uint8_t const* buffer, uint16_t bufsize) {
-    TU_VERIFY(winusb_ep_interrupt_address != 0, false);
-    TU_VERIFY(bufsize <= sizeof(winusb_ep_interrupt_buffer), false);
-    TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_interrupt_address), false);
-
-    memcpy(winusb_ep_interrupt_buffer, buffer, bufsize);
-    return usbd_edpt_xfer(0, winusb_ep_interrupt_address, winusb_ep_interrupt_buffer, bufsize);
 }
