@@ -365,7 +365,8 @@ namespace T76::Core::USB {
          * @brief Send bulk data to the WinUSB-compatible interface.
          *
          * @param data Payload to send to the host over the dedicated WinUSB bulk IN endpoint.
-         * @return This method does not return a value; transfer initiation is handled asynchronously.
+         * @return This method does not return a value; it starts or waits for the
+         *         required bulk-IN transfers in the current execution context.
          */
         void sendWinUSBBulkData(const std::vector<uint8_t> &data);
 
@@ -373,9 +374,10 @@ namespace T76::Core::USB {
          * @brief Send interrupt data to the WinUSB-compatible interface.
          *
          * @param data Payload to send to the host over the dedicated WinUSB interrupt IN endpoint.
-         * @return This method does not return a value; transfer initiation is handled asynchronously.
+         * @return true if the interrupt-IN transfer was started immediately,
+         *         false if the endpoint was busy or unavailable.
          */
-        void sendWinUSBInterruptData(const std::vector<uint8_t> &data);
+        bool sendWinUSBInterruptData(const std::vector<uint8_t> &data);
 
         /**
          * @brief Send USBTMC bulk data to the USB host.

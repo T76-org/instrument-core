@@ -55,6 +55,13 @@ void t76_winusb_interrupt_complete_cb(uint32_t xferred_bytes);
 bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize);
 
 /**
+ * @brief Start a zero-length WinUSB bulk IN transfer.
+ *
+ * @return true if the zero-length packet transfer was started, false otherwise.
+ */
+bool t76_winusb_bulk_in_zlp(void);
+
+/**
  * @brief Start a WinUSB interrupt IN transfer.
  *
  * @param buffer Pointer to the payload to send.

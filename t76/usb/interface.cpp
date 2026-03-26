@@ -17,6 +17,7 @@ using namespace T76::Core::USB;
 
 namespace {
 constexpr uint8_t kVendorInterfaceInstance = 0;
+constexpr size_t kWinUSBEndpointPacketSize = 64;
 }
 
 
@@ -105,25 +106,22 @@ bool Interface::sendWinUSBControlTransferData(uint8_t port, const tusb_control_r
 }
 
 void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
-    DispatchItem *item = new DispatchItem;
-
-    item->type = DispatchType::SendWinUSBBulkData;
-    item->data = data;
-
-    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
-        delete item;
+    for (size_t offset = 0; offset < data.size();) {
+        const size_t chunkSize = std::min(data.size() - offset, static_cast<size_t>(CFG_TUD_VENDOR_TX_BUFSIZE));
+        while (!t76_winusb_bulk_in_xfer(data.data() + offset, static_cast<uint16_t>(chunkSize))) {
+            taskYIELD();
+        }
+        offset += chunkSize;
+    }
+    if (!data.empty() && (data.size() % kWinUSBEndpointPacketSize) == 0) {
+        while (!t76_winusb_bulk_in_zlp()) {
+            taskYIELD();
+        }
     }
 }
 
-void Interface::sendWinUSBInterruptData(const std::vector<uint8_t> &data) {
-    DispatchItem *item = new DispatchItem;
-
-    item->type = DispatchType::SendWinUSBInterruptData;
-    item->data = data;
-
-    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
-        delete item;
-    }
+bool Interface::sendWinUSBInterruptData(const std::vector<uint8_t> &data) {
+    return t76_winusb_interrupt_xfer(data.data(), static_cast<uint16_t>(data.size()));
 }
 
 void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {

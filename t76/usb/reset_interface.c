@@ -238,6 +238,13 @@ bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize) {
     return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, bufsize);
 }
 
+bool t76_winusb_bulk_in_zlp(void) {
+    TU_VERIFY(winusb_ep_in_address != 0, false);
+    TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_in_address), false);
+
+    return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, 0);
+}
+
 bool t76_winusb_interrupt_xfer(uint8_t const* buffer, uint16_t bufsize) {
     TU_VERIFY(winusb_ep_interrupt_address != 0, false);
     TU_VERIFY(bufsize <= sizeof(winusb_ep_interrupt_buffer), false);
