@@ -16,20 +16,29 @@
 #include "device/usbd_pvt.h"
 #include "device/usbd.h"
 
+#include "callbacks.hpp"
 #include "usb_descriptors.h"
 
 
 uint8_t reset_interface_number;
+uint8_t winusb_interface_number;
+
+static uint8_t winusb_ep_out_address;
+static uint8_t winusb_ep_in_address;
+
+static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_out_buffer[CFG_TUD_VENDOR_EPSIZE];
+static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_in_buffer[CFG_TUD_VENDOR_TX_BUFSIZE];
 
 // Support for Microsoft OS 2.0 descriptor
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
-#define MS_OS_20_DESC_LEN            322
+#define MS_OS_20_DESC_LEN            478
 #define MS_OS_20_FUNCTION_DESC_LEN   156
 #define MS_OS_20_VENDOR_PROPERTY_LEN 128
 
 #define RESET_INTERFACE_GUID "{bc7398c1-73cd-4cb7-98b8-913a8fca7bf6}"
 #define VENDOR_INTERFACE_GUID "{06b63d79-4f6b-4d9c-9918-32b9c1d6f7b2}"
+#define WINUSB_INTERFACE_GUID "{e6a8e15c-d6be-4a1d-8c25-2a8973d8cb5f}"
 
 #define MS_OS_20_FUNCTION_SUBSET(_itfnum, _guid_literal) \
     /* Function subset header */ \
@@ -76,7 +85,8 @@ const uint8_t desc_ms_os_20[] = {
     // Set header: length, type, windows version, total length
     U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR), U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
     MS_OS_20_FUNCTION_SUBSET(ITF_NUM_RESET, RESET_INTERFACE_GUID),
-    MS_OS_20_FUNCTION_SUBSET(ITF_NUM_VENDOR, VENDOR_INTERFACE_GUID)
+    MS_OS_20_FUNCTION_SUBSET(ITF_NUM_VENDOR, VENDOR_INTERFACE_GUID),
+    MS_OS_20_FUNCTION_SUBSET(ITF_NUM_WINUSB, WINUSB_INTERFACE_GUID)
 };
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
@@ -93,26 +103,65 @@ static void resetd_init(void) {
 
 static void resetd_reset(uint8_t __unused rhport) {
     reset_interface_number = 0;
+    winusb_interface_number = 0;
+    winusb_ep_out_address = 0;
+    winusb_ep_in_address = 0;
 }
 
-static uint16_t resetd_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
-    TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass &&
-              RESET_INTERFACE_SUBCLASS == itf_desc->bInterfaceSubClass &&
-              RESET_INTERFACE_PROTOCOL == itf_desc->bInterfaceProtocol, 0);
+static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+    TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass, 0);
 
-    uint16_t const drv_len = sizeof(tusb_desc_interface_t);
-    TU_VERIFY(max_len >= drv_len, 0);
+    if (itf_desc->bInterfaceSubClass == RESET_INTERFACE_SUBCLASS &&
+        itf_desc->bInterfaceProtocol == RESET_INTERFACE_PROTOCOL) {
+        uint16_t const drv_len = sizeof(tusb_desc_interface_t);
+        TU_VERIFY(max_len >= drv_len, 0);
 
-    reset_interface_number = itf_desc->bInterfaceNumber;
-    return drv_len;
+        reset_interface_number = itf_desc->bInterfaceNumber;
+        return drv_len;
+    }
+
+    if (itf_desc->bInterfaceSubClass == WINUSB_INTERFACE_SUBCLASS &&
+        itf_desc->bInterfaceProtocol == WINUSB_INTERFACE_PROTOCOL) {
+        TU_VERIFY(itf_desc->bNumEndpoints == 2, 0);
+
+        const uint8_t* p_desc = tu_desc_next(itf_desc);
+        const uint8_t* desc_end = ((uint8_t const*) itf_desc) + max_len;
+        uint8_t found_ep = 0;
+
+        winusb_interface_number = itf_desc->bInterfaceNumber;
+
+        while ((found_ep < itf_desc->bNumEndpoints) && (p_desc < desc_end)) {
+            while ((p_desc < desc_end) && (tu_desc_type(p_desc) != TUSB_DESC_ENDPOINT)) {
+                p_desc = tu_desc_next(p_desc);
+            }
+
+            TU_VERIFY(p_desc < desc_end, 0);
+
+            tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) p_desc;
+            TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+
+            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+                winusb_ep_out_address = desc_ep->bEndpointAddress;
+                TU_ASSERT(usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer)), 0);
+            } else {
+                winusb_ep_in_address = desc_ep->bEndpointAddress;
+            }
+
+            found_ep++;
+            p_desc = tu_desc_next(p_desc);
+        }
+
+        TU_VERIFY(found_ep == itf_desc->bNumEndpoints, 0);
+        return (uint16_t) ((uintptr_t) p_desc - (uintptr_t) itf_desc);
+    }
+
+    return 0;
 }
 
 // Support for parameterized reset via vendor interface control request
 static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_control_request_t const * request) {
-    // nothing to do with DATA & ACK stage
-    if (stage != CONTROL_STAGE_SETUP) return true;
-
     if (request->wIndex == reset_interface_number) {
+        if (stage != CONTROL_STAGE_SETUP) return true;
 
         if (request->bRequest == RESET_REQUEST_BOOTSEL) {
             int gpio = -1;
@@ -130,10 +179,28 @@ static bool resetd_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_
             return true;
         }
     }
+
+    if (request->wIndex == winusb_interface_number) {
+        return t76_winusb_control_xfer_cb(rhport, stage, request);
+    }
+
     return false;
 }
 
 static bool resetd_xfer_cb(uint8_t __unused rhport, uint8_t __unused ep_addr, xfer_result_t __unused result, uint32_t __unused xferred_bytes) {
+    if (ep_addr == winusb_ep_out_address) {
+        if (xferred_bytes > 0) {
+            t76_winusb_bulk_out_received_cb(winusb_ep_out_buffer, (uint16_t) xferred_bytes);
+        }
+
+        return usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer));
+    }
+
+    if (ep_addr == winusb_ep_in_address) {
+        t76_winusb_bulk_in_complete_cb(xferred_bytes);
+        return true;
+    }
+
     return true;
 }
 
@@ -150,4 +217,20 @@ static usbd_class_driver_t const _resetd_driver = {
 usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
     *driver_count = 1;
     return &_resetd_driver;
+}
+
+bool t76_winusb_bulk_in_xfer(uint8_t const* buffer, uint16_t bufsize) {
+    TU_VERIFY(winusb_ep_in_address != 0, false);
+    TU_VERIFY(bufsize <= sizeof(winusb_ep_in_buffer), false);
+    TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_in_address), false);
+
+    memcpy(winusb_ep_in_buffer, buffer, bufsize);
+    return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, bufsize);
+}
+
+bool t76_winusb_bulk_in_zlp(void) {
+    TU_VERIFY(winusb_ep_in_address != 0, false);
+    TU_VERIFY(!usbd_edpt_busy(0, winusb_ep_in_address), false);
+
+    return usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, 0);
 }

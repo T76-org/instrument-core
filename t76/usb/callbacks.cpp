@@ -16,6 +16,18 @@ extern "C" bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_c
     return Interface::_singleton->_vendorControlTransfer(rhport, stage, request);
 }
 
+extern "C" bool t76_winusb_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request) {
+    return Interface::_singleton->_winusbControlTransfer(rhport, stage, request);
+}
+
+extern "C" void t76_winusb_bulk_out_received_cb(uint8_t const* buffer, uint16_t bufsize) {
+    Interface::_singleton->_winusbBulkOutReceived(buffer, bufsize);
+}
+
+extern "C" void t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes) {
+    Interface::_singleton->_winusbBulkInComplete(xferred_bytes);
+}
+
 extern "C" usbtmc_response_capabilities_488_t const * tud_usbtmc_get_capabilities_cb(void) {
     return Interface::_singleton->_usbtmcCapabilities();
 }
@@ -87,5 +99,3 @@ uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult) {
 bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const * msg, uint8_t *tmcResult) {
     return Interface::_singleton->_usbtmcIndicatorPulse(msg, tmcResult);
 }
-
-

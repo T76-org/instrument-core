@@ -19,6 +19,8 @@
  *   functionality, such as USBTMC compatibility.
  * - A USBTMC interface that provides a standard interface for test and 
  *   measurement devices.
+ * - A WinUSB-compatible vendor interface that exposes dedicated bulk endpoints
+ *   for Windows-native frontend access.
  * 
  * The runtime is multithreaded and fully reentrant, allowing you to
  * send and receive data from multiple threads without blocking. It uses
@@ -172,6 +174,31 @@ namespace T76::Core::USB {
         virtual bool _onVendorControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) = 0;
 
         /**
+         * @brief WinUSB control transfer IN callback.
+         *
+         * Called when the host issues a control transfer to the WinUSB-facing
+         * interface and expects an IN data phase response.
+         *
+         * @param port The USB root port servicing the request.
+         * @param request The control request received from the host.
+         * @return true if the request was handled, false otherwise.
+         */
+        virtual bool _onWinUSBControlTransferIn(uint8_t port, const tusb_control_request_t *request) { return false; }
+
+        /**
+         * @brief WinUSB control transfer OUT callback.
+         *
+         * Called when the host sends control transfer data to the WinUSB-facing
+         * interface.
+         *
+         * @param request The control request code from the host.
+         * @param value The request value field.
+         * @param data The control transfer payload received from the host.
+         * @return true if the request was handled, false otherwise.
+         */
+        virtual bool _onWinUSBControlTransferOut(uint8_t request, uint16_t value, const std::vector<uint8_t> &data) { return false; }
+
+        /**
          * @brief USBTMC data received callback.
          * 
          * @param data The data received from the USB host.
@@ -208,6 +235,26 @@ namespace T76::Core::USB {
          * this method in a subclass to handle the clear request and perform any necessary processing.
          */
         virtual void _onUSBTMCClear() = 0;
+
+        /**
+         * @brief WinUSB bulk data received callback.
+         *
+         * This method is called when data is received on the dedicated WinUSB
+         * transport interface.
+         *
+         * @param data The raw USB packet payload.
+         */
+        virtual void _onWinUSBBulkDataReceived(const std::vector<uint8_t> &data) { }
+
+        /**
+         * @brief WinUSB bulk IN transfer completion callback.
+         *
+         * Called when a WinUSB bulk IN transfer completes.
+         *
+         * @param xferred_bytes Number of bytes transferred to the host.
+         */
+        virtual void _onWinUSBBulkInComplete(uint32_t xferred_bytes) { }
+
     };
 
     /**
@@ -297,6 +344,25 @@ namespace T76::Core::USB {
         bool sendVendorControlTransferData(uint8_t port, const tusb_control_request_t *request, const std::vector<uint8_t> &data);
 
         /**
+         * @brief Send data for a WinUSB control transfer.
+         *
+         * @param port The USB port number.
+         * @param request The control request being serviced.
+         * @param data The response payload to return to the host.
+         * @return true if the transfer was started successfully, false otherwise.
+         */
+        bool sendWinUSBControlTransferData(uint8_t port, const tusb_control_request_t *request, const std::vector<uint8_t> &data);
+
+        /**
+         * @brief Send bulk data to the WinUSB-compatible interface.
+         *
+         * @param data Payload to send to the host over the dedicated WinUSB bulk IN endpoint.
+         * @return This method does not return a value; it starts or waits for the
+         *         required bulk-IN transfers in the current execution context.
+         */
+        void sendWinUSBBulkData(const std::vector<uint8_t> &data);
+
+        /**
          * @brief Send USBTMC bulk data to the USB host.
          * @param data The data to be sent. The function takes ownership of the data
          *            and will copy it to the USBTMC buffer asynchronously.
@@ -344,6 +410,9 @@ namespace T76::Core::USB {
         enum class DispatchType {
             DataReceived,
             SendData,
+            WinUSBBulkDataReceived,
+            WinUSBBulkInComplete,
+            SendWinUSBBulkData,
         };
 
         /**
@@ -361,6 +430,7 @@ namespace T76::Core::USB {
         typedef struct {
             DispatchType type;
             std::vector<uint8_t> data;
+            uint32_t xferred_bytes = 0;
         } DispatchItem;
 
         /**
@@ -388,6 +458,16 @@ namespace T76::Core::USB {
          * @brief Buffer that stores OUT-direction vendor control transfer data.
          */
         std::vector<uint8_t> _vendorControlDataInBuffer;
+
+        /**
+         * @brief Buffer that stores IN-direction WinUSB control transfer data.
+         */
+        std::vector<uint8_t> _winusbControlDataOutBuffer;
+
+        /**
+         * @brief Buffer that stores OUT-direction WinUSB control transfer data.
+         */
+        std::vector<uint8_t> _winusbControlDataInBuffer;
 
         /**
          * @brief Buffer that stores USBTMC bulk IN data.
@@ -503,6 +583,21 @@ namespace T76::Core::USB {
         void _vendorDataReceived(uint8_t itf, uint8_t* buffer, uint16_t bufsize);
 
         /**
+         * @brief Handle WinUSB bulk OUT data received.
+         *
+         * @param buffer The buffer containing the received payload.
+         * @param bufsize Size of the received payload in bytes.
+         */
+        void _winusbBulkOutReceived(uint8_t const* buffer, uint16_t bufsize);
+
+        /**
+         * @brief Handle WinUSB bulk IN transfer completion.
+         *
+         * @param xferred_bytes Number of bytes transferred.
+         */
+        void _winusbBulkInComplete(uint32_t xferred_bytes);
+
+        /**
          * @brief Handle vendor control transfer.
          * 
          * This method is called when a control transfer is received on the vendor interface.
@@ -526,6 +621,16 @@ namespace T76::Core::USB {
          * @return true if the control transfer was successfully handled, false otherwise.
          */
         bool _vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request);
+
+        /**
+         * @brief Handle WinUSB control transfers.
+         *
+         * @param rhport The USB port number.
+         * @param stage The control transfer stage.
+         * @param request The control request to process.
+         * @return true if the transfer was handled, false otherwise.
+         */
+        bool _winusbControlTransfer(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request);
 
         /**
          * @brief Get the USBTMC capabilities.
@@ -729,6 +834,9 @@ namespace T76::Core::USB {
 
         friend void ::tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
         friend bool ::tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+        friend bool ::t76_winusb_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request);
+        friend void ::t76_winusb_bulk_out_received_cb(uint8_t const* buffer, uint16_t bufsize);
+        friend void ::t76_winusb_bulk_in_complete_cb(uint32_t xferred_bytes);
 
         // USBTMC interface callbacks
 

@@ -9,10 +9,16 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "callbacks.hpp"
 #include "interface_interrupt.hpp"
 
 
 using namespace T76::Core::USB;
+
+namespace {
+constexpr uint8_t kVendorInterfaceInstance = 0;
+constexpr size_t kWinUSBEndpointPacketSize = 64;
+}
 
 
 Interface* Interface::_singleton = nullptr;
@@ -84,6 +90,34 @@ bool Interface::sendVendorControlTransferData(uint8_t port, const tusb_control_r
     }
 
     return false; // Only IN transfers are supported for control transfers
+}
+
+bool Interface::sendWinUSBControlTransferData(uint8_t port, const tusb_control_request_t *request, const std::vector<uint8_t> &data) {
+    if (request->bmRequestType_bit.direction == TUSB_DIR_IN) {
+        if (data.size() != request->wLength) {
+            return false;
+        }
+
+        _winusbControlDataOutBuffer = data;
+        return tud_control_xfer(port, request, static_cast<void*>(_winusbControlDataOutBuffer.data()), _winusbControlDataOutBuffer.size());
+    }
+
+    return false;
+}
+
+void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
+    for (size_t offset = 0; offset < data.size();) {
+        const size_t chunkSize = std::min(data.size() - offset, static_cast<size_t>(CFG_TUD_VENDOR_TX_BUFSIZE));
+        while (!t76_winusb_bulk_in_xfer(data.data() + offset, static_cast<uint16_t>(chunkSize))) {
+            taskYIELD();
+        }
+        offset += chunkSize;
+    }
+    if (!data.empty() && (data.size() % kWinUSBEndpointPacketSize) == 0) {
+        while (!t76_winusb_bulk_in_zlp()) {
+            taskYIELD();
+        }
+    }
 }
 
 void Interface::sendUSBTMCBulkData(const std::vector<uint8_t> &data) {
@@ -174,11 +208,29 @@ void Interface::_dispatchTask() {
                         uint8_t *buffer = item->data.data();
 
                         while (offset < total) {
-                            size_t written = tud_vendor_write(buffer + offset, total - offset);
-                            tud_vendor_write_flush();
+                            size_t written = tud_vendor_n_write(kVendorInterfaceInstance, buffer + offset, total - offset);
+                            tud_vendor_n_write_flush(kVendorInterfaceInstance);
                             offset += written;
                             taskYIELD(); // Yield to allow other tasks to run
                         }
+                    }
+                    break;
+
+                case DispatchType::WinUSBBulkDataReceived:
+                    _delegate._onWinUSBBulkDataReceived(item->data);
+                    break;
+
+                case DispatchType::WinUSBBulkInComplete:
+                    _delegate._onWinUSBBulkInComplete(item->xferred_bytes);
+                    break;
+
+                case DispatchType::SendWinUSBBulkData:
+                    for (size_t offset = 0; offset < item->data.size();) {
+                        const size_t chunkSize = std::min(item->data.size() - offset, static_cast<size_t>(CFG_TUD_VENDOR_TX_BUFSIZE));
+                        while (!t76_winusb_bulk_in_xfer(item->data.data() + offset, (uint16_t)chunkSize)) {
+                            taskYIELD();
+                        }
+                        offset += chunkSize;
                     }
                     break;
 
@@ -201,10 +253,34 @@ void Interface::_vendorDataReceived(uint8_t itf, uint8_t* buffer, uint16_t bufsi
     item->type = DispatchType::DataReceived;
     item->data = std::move(data);
 
-    tud_vendor_read_flush(); // Flush the vendor read buffer
+    tud_vendor_n_read_flush(itf); // Flush the vendor read buffer
 
     if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
         //TODO: Log error
+        delete item;
+    }
+}
+
+void Interface::_winusbBulkOutReceived(uint8_t const* buffer, uint16_t bufsize) {
+    std::vector<uint8_t> data(buffer, buffer + bufsize);
+
+    DispatchItem *item = new DispatchItem;
+
+    item->type = DispatchType::WinUSBBulkDataReceived;
+    item->data = std::move(data);
+
+    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
+        delete item;
+    }
+}
+
+void Interface::_winusbBulkInComplete(uint32_t xferred_bytes) {
+    DispatchItem *item = new DispatchItem;
+
+    item->type = DispatchType::WinUSBBulkInComplete;
+    item->xferred_bytes = xferred_bytes;
+
+    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
         delete item;
     }
 }
@@ -269,6 +345,36 @@ bool Interface::_vendorControlTransfer(uint8_t rhport, uint8_t stage, const tusb
 
         default:
             return false; // Unsupported stage
+    }
+
+    return true;
+}
+
+bool Interface::_winusbControlTransfer(uint8_t rhport, uint8_t stage, const tusb_control_request_t* request) {
+    switch(stage) {
+        case CONTROL_STAGE_SETUP:
+            if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
+                _winusbControlDataInBuffer.resize(request->wLength);
+                return tud_control_xfer(rhport, request, _winusbControlDataInBuffer.data(), _winusbControlDataInBuffer.size());
+            }
+
+            return _delegate._onWinUSBControlTransferIn(rhport, request);
+
+        case CONTROL_STAGE_DATA:
+            if (request->bmRequestType_bit.direction == TUSB_DIR_OUT) {
+                return _delegate._onWinUSBControlTransferOut(
+                    request->bRequest,
+                    request->wValue,
+                    std::vector<uint8_t>(_winusbControlDataInBuffer.begin(), _winusbControlDataInBuffer.begin() + request->wLength)
+                );
+            }
+            break;
+
+        case CONTROL_STAGE_ACK:
+            break;
+
+        default:
+            return false;
     }
 
     return true;

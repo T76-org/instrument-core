@@ -36,12 +36,19 @@
 #define EPNUM_VENDOR_OUT    0x05
 #define EPNUM_VENDOR_IN     0x85
 
+#define EPNUM_WINUSB_OUT    0x06
+#define EPNUM_WINUSB_IN     0x86
+
+#define WINUSB_INTERFACE_SUBCLASS 0x01
+#define WINUSB_INTERFACE_PROTOCOL 0x02
+
 enum {
   ITF_NUM_CDC = 0,
   ITF_NUM_CDC_DATA,
   ITF_NUM_RESET,
   ITF_NUM_VENDOR,
   ITF_NUM_USBTMC,
+  ITF_NUM_WINUSB,
   ITF_NUM_TOTAL
 };
 
@@ -53,5 +60,6 @@ enum {
 extern uint8_t const desc_ms_os_20[];
 extern const tusb_desc_webusb_url_t desc_url;
 extern uint8_t reset_interface_number;
+extern uint8_t winusb_interface_number;
 
 #endif /* USB_DESCRIPTORS_H_ */
