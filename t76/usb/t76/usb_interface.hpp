@@ -393,6 +393,8 @@ namespace T76::Core::USB {
         bool sendUSBTMCSRQInterrupt(const uint8_t srq);
 
     protected:
+        static constexpr uint8_t _vendorInterfaceInstance = 0; ///< TinyUSB vendor-interface instance used for legacy bulk transfers.
+        static constexpr size_t _winUSBEndpointPacketSize = 64; ///< Max packet size for the WinUSB bulk IN endpoint.
 
         /**
          * @brief Registered delegate that receives interface callbacks.

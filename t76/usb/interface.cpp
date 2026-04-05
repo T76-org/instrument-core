@@ -12,14 +12,7 @@
 #include "callbacks.hpp"
 #include "interface_interrupt.hpp"
 
-
-using namespace T76::Core::USB;
-
-namespace {
-constexpr uint8_t kVendorInterfaceInstance = 0;
-constexpr size_t kWinUSBEndpointPacketSize = 64;
-}
-
+namespace T76::Core::USB {
 
 Interface* Interface::_singleton = nullptr;
 
@@ -113,7 +106,7 @@ void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
         }
         offset += chunkSize;
     }
-    if (!data.empty() && (data.size() % kWinUSBEndpointPacketSize) == 0) {
+    if (!data.empty() && (data.size() % _winUSBEndpointPacketSize) == 0) {
         while (!t76_winusb_bulk_in_zlp()) {
             taskYIELD();
         }
@@ -208,8 +201,8 @@ void Interface::_dispatchTask() {
                         uint8_t *buffer = item->data.data();
 
                         while (offset < total) {
-                            size_t written = tud_vendor_n_write(kVendorInterfaceInstance, buffer + offset, total - offset);
-                            tud_vendor_n_write_flush(kVendorInterfaceInstance);
+                            size_t written = tud_vendor_n_write(_vendorInterfaceInstance, buffer + offset, total - offset);
+                            tud_vendor_n_write_flush(_vendorInterfaceInstance);
                             offset += written;
                             taskYIELD(); // Yield to allow other tasks to run
                         }
@@ -546,3 +539,5 @@ bool Interface::_usbtmcIndicatorPulse(tusb_control_request_t const * msg, uint8_
     *tmcResult = USBTMC_STATUS_SUCCESS; // Set the result to 0 for now
     return true; // Return true to indicate success
 }
+
+} // namespace T76::Core::USB
