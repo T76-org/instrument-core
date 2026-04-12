@@ -103,6 +103,7 @@
 
 #include <memory>
 #include <atomic>
+#include <deque>
 #include <queue>
 #include <stdint.h>
 #include <string>
@@ -471,6 +472,11 @@ namespace T76::Core::USB {
          */
         std::vector<uint8_t> _winusbControlDataInBuffer;
 
+        std::deque<std::vector<uint8_t>> _winUSBBulkInQueue; ///< Queued WinUSB bulk IN frames.
+        size_t _winUSBBulkInOffset = 0; ///< Offset into the current WinUSB bulk IN frame.
+        bool _winUSBBulkInZlpInFlight = false; ///< Whether a WinUSB ZLP is currently in flight.
+        bool _winUSBBulkInZlpComplete = false; ///< Whether the current frame's trailing ZLP has completed.
+
         /**
          * @brief Buffer that stores USBTMC bulk IN data.
          */
@@ -598,6 +604,18 @@ namespace T76::Core::USB {
          * @param xferred_bytes Number of bytes transferred.
          */
         void _winusbBulkInComplete(uint32_t xferred_bytes);
+
+        /**
+         * @brief Queue one WinUSB bulk IN payload for completion-driven sending.
+         *
+         * @param data Framed payload to send to the host.
+         */
+        void _queueWinUSBBulkInData(std::vector<uint8_t> data);
+
+        /**
+         * @brief Start the next WinUSB bulk IN chunk when the endpoint is idle.
+         */
+        void _continueWinUSBBulkInTransfer();
 
         /**
          * @brief Handle vendor control transfer.
