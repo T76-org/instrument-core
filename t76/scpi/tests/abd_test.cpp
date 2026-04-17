@@ -33,13 +33,19 @@ int main() {
         // Test 4: Single character ABD
         // Format: #11X (1 digit for size, size=1, data=X)
         test_command("TEST:ABD:SIMPLE #11X", "TEST:ABD:SIMPLE executed with ABD data: size=1 bytes");
+
+        // Test 5: ABD payload case is preserved for structured data such as JSON.
+        test_command(
+            "TEST:ABD:SIMPLE #211{\"ok\":true}",
+            "TEST:ABD:SIMPLE executed with ABD data: size=11 bytes, hex=[7b 22 6f 6b 22 3a 74 72"
+        );
         
         std::cout << "\n--- Testing ABD Error Conditions ---" << std::endl;
         
-        // Test 5: Invalid size length digit (0)
+        // Test 6: Invalid size length digit (0)
         test_command("TEST:ABD:SIMPLE #0", "", "103");
         
-        // Test 6: Invalid size length digit (non-numeric)
+        // Test 7: Invalid size length digit (non-numeric)
         test_command("TEST:ABD:SIMPLE #A15HELLO", "", "103");
         
         std::cout << "\n--- Testing ABD Edge Cases ---" << std::endl;
