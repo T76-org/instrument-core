@@ -263,6 +263,106 @@ The USB interface can be configured by changing the following CMake variables in
 
 This allows to completely customize the interface to suit your specific application needs, including changing the way it appears to the host system. Note, however, that the reboot functionality relies on the use of the Pi Pico's built-in USB vendor class, so if you change the vendor ID or product ID, you may need to implement your own reboot mechanism.
 
+## Resident firmware updater
+
+The IC includes a reusable resident stage-3 updater bootloader for RP2350 instruments that need browser-driven firmware updates without asking the user to enter the Pico SDK's built-in PICOBOOT mode. The bootloader is intended to live at the start of flash, while the application is linked at a later flash offset. A normal PICOBOOT/picotool flash can still install one combined UF2 containing both bootloader and application, and a browser updater can consume that same combined UF2 while writing only the application region.
+
+This is useful for WebUSB/WinUSB applications because browser authorization is tied to the USB device identity. If the application asks the bootloader to enumerate with the same VID, PID, manufacturer string, product string, serial number, and WinUSB interface shape, the browser can reconnect to the updater without requiring the user to pair with a different USB device.
+
+### Flash layout
+
+The project owns the exact flash map, but the usual layout is:
+
+```text
+0x10000000  resident updater bootloader
+0x10008000  application image
+...         application flash
+flash tail  project-protected persistent configuration sector
+```
+
+The bootloader enforces the application write window at runtime. It rejects writes below the configured application offset and rejects writes that overlap the configured protected flash tail. The bootloader does not parse UF2 data; host software must parse the UF2 and send raw application-region writes through the updater protocol.
+
+### Boot flow
+
+On reset, the bootloader checks watchdog scratch registers for the retained updater request flag defined in `<t76/updater/boot_request.h>`.
+
+- If the flag is absent, the bootloader validates the application vector table at `T76_UPDATER_APPLICATION_XIP_BASE` and jumps to the application reset handler.
+- If the flag is present, the bootloader stays resident, enumerates as a minimal TinyUSB WinUSB device, and waits for updater frames.
+- On a successful update, `UpdateFinish` verifies the programmed application CRC32, clears the retained flag, and reboots into the application.
+- On CRC failure or protocol errors, the updater remains available so the host can retry or abort.
+
+The running application is responsible for exposing whatever user-facing command should request updater mode. A typical implementation handles a dedicated SCPI command, writes `T76_UPDATER_BOOT_MAGIC` and `T76_UPDATER_BOOT_ARM_VALUE` to `T76_UPDATER_BOOT_SCRATCH_MAGIC` and `T76_UPDATER_BOOT_SCRATCH_ARM`, then reboots.
+
+### WinUSB updater protocol
+
+The updater protocol is a small framed WinUSB protocol, not SCPI. Frame constants live in `<t76/updater/boot_request.h>` so application and host code can share the same message IDs.
+
+Supported updater request frame types are:
+
+- `T76_WINUSB_FRAME_UPDATE_BEGIN`: Carries application base flash offset, total application span, and expected CRC32.
+- `T76_WINUSB_FRAME_UPDATE_WRITE`: Carries an absolute flash offset plus one flash-page payload. The bootloader enforces page alignment and range validity.
+- `T76_WINUSB_FRAME_UPDATE_FINISH`: Verifies CRC32, clears the retained updater request, and reboots on success.
+- `T76_WINUSB_FRAME_UPDATE_ABORT`: Cancels the active update session without clearing the retained updater request.
+- `T76_WINUSB_FRAME_UPDATE_STATUS`: Reports updater state, base offset, total length, and bytes written.
+
+The bootloader also accepts the normal WinUSB session-reset frame and returns updater ACK or error frames for updater requests.
+
+### CMake integration
+
+Add instrument-core as usual, then link the application against both `t76_ic` and `t76_ic_updater` if the application includes `<t76/updater/boot_request.h>`:
+
+```cmake
+add_subdirectory(instrument-core)
+
+target_link_libraries(your_app
+    t76_ic
+    t76_ic_updater
+)
+```
+
+The application target must define its application flash offset before including the updater header:
+
+```cmake
+target_compile_definitions(your_app PUBLIC
+    T76_UPDATER_APPLICATION_FLASH_OFFSET_BYTES=0x8000
+)
+```
+
+Use `t76_add_stage3_updater_bootloader()` to declare the resident bootloader target:
+
+```cmake
+t76_add_stage3_updater_bootloader(your-stage3-bootloader
+    APPLICATION_FLASH_OFFSET 0x8000
+    FLASH_SIZE 4194304
+    PROTECTED_TAIL_SIZE 4096
+    USB_VENDOR_ID ${T76_IC_USB_VENDOR_ID}
+    USB_PRODUCT_ID ${T76_IC_USB_PRODUCT_ID}
+    USB_MANUFACTURER_STRING "${T76_IC_USB_MANUFACTURER_STRING}"
+    USB_PRODUCT_STRING "${T76_IC_USB_PRODUCT_STRING}"
+    PROGRAM_NAME "Your Instrument Updater"
+    PROGRAM_VERSION "0.1"
+)
+```
+
+The helper builds a standalone bootloader ELF/BIN/UF2 and configures TinyUSB, Pico SDK, unique-ID serial string support, and the updater compile definitions. The project still owns its application linker script; link the application to the application flash base and generate the application UF2 with absolute blocks at that same address.
+
+Use `t76_add_combined_uf2()` to produce the release artifact that contains both images:
+
+```cmake
+t76_add_combined_uf2(your-firmware-combined
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/your-firmware-combined.uf2
+    BOOTLOADER_UF2 ${CMAKE_CURRENT_BINARY_DIR}/your-stage3-bootloader.uf2
+    APP_UF2 ${CMAKE_CURRENT_BINARY_DIR}/your-application.uf2
+)
+
+add_dependencies(your-firmware-combined
+    your-stage3-bootloader
+    your-application-uf2-target
+)
+```
+
+This combined UF2 is the normal release artifact. PICOBOOT/picotool writes both bootloader and application from it. Browser update tools should parse the same UF2, discard blocks below `T76_UPDATER_APPLICATION_FLASH_OFFSET_BYTES`, and stream only application-region flash pages to the updater.
+
 ## SCPI Command Interface
 
 The IC provides a complete SCPI (Standard Commands for Programmable Instruments) command interpreter that allows you to implement industry-standard instrument control over USBTMC. The SCPI system uses a declarative YAML-based approach for defining commands, with automatic code generation for efficient command parsing and execution.
@@ -490,4 +590,3 @@ For advanced use cases, you can customize the maximum arbitrary data block size 
 ```cpp
 T76::SCPI::Interpreter<T76::App> _interpreter(*this, 4096);  // 4KB max ABD size
 ```
-
