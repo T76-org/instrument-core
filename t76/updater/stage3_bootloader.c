@@ -22,6 +22,8 @@
 #include "pico/stdlib.h"
 #include "pico/unique_id.h"
 #include "tusb.h"
+#include "device/usbd.h"
+#include "device/usbd_pvt.h"
 
 #include <t76/updater/boot_request.h>
 
@@ -52,25 +54,47 @@
 #endif
 
 #define T76_STAGE3_UPDATER_MAX_FRAME_SIZE 4608u
-#define T76_STAGE3_UPDATER_WINUSB_ITF 0u
-#define T76_STAGE3_UPDATER_WINUSB_EP_OUT 0x01u
-#define T76_STAGE3_UPDATER_WINUSB_EP_IN 0x81u
+#define T76_STAGE3_UPDATER_CDC_ITF 0u
+#define T76_STAGE3_UPDATER_CDC_DATA_ITF 1u
+#define T76_STAGE3_UPDATER_RESET_ITF 2u
+#define T76_STAGE3_UPDATER_VENDOR_ITF 3u
+#define T76_STAGE3_UPDATER_USBTMC_ITF 4u
+#define T76_STAGE3_UPDATER_WINUSB_ITF 5u
+#define T76_STAGE3_UPDATER_CDC_EP_NOTIF 0x83u
+#define T76_STAGE3_UPDATER_CDC_EP_OUT 0x04u
+#define T76_STAGE3_UPDATER_CDC_EP_IN 0x84u
+#define T76_STAGE3_UPDATER_VENDOR_EP_OUT 0x05u
+#define T76_STAGE3_UPDATER_VENDOR_EP_IN 0x85u
+#define T76_STAGE3_UPDATER_USBTMC_EP_OUT 0x01u
+#define T76_STAGE3_UPDATER_USBTMC_EP_IN 0x81u
+#define T76_STAGE3_UPDATER_USBTMC_EP_INT 0x82u
+#define T76_STAGE3_UPDATER_WINUSB_EP_OUT 0x06u
+#define T76_STAGE3_UPDATER_WINUSB_EP_IN 0x86u
 #define T76_STAGE3_UPDATER_WINUSB_EP_SIZE 64u
+#define T76_STAGE3_UPDATER_RESET_SUBCLASS 0x00u
+#define T76_STAGE3_UPDATER_RESET_PROTOCOL 0x01u
 #define T76_STAGE3_UPDATER_WINUSB_SUBCLASS 0x01u
 #define T76_STAGE3_UPDATER_WINUSB_PROTOCOL 0x02u
+#define T76_STAGE3_UPDATER_WINUSB_INSTANCE 0u
+#define T76_STAGE3_UPDATER_ITF_BUFFER_SIZE 64u
 #define T76_STAGE3_UPDATER_WINUSB_DESC_LEN 23u
+#define T76_STAGE3_UPDATER_RESET_DESC_LEN 9u
 #define T76_STAGE3_UPDATER_MIN_WRITE_PAYLOAD 4u
 #define T76_STAGE3_UPDATER_STATE_IDLE 0u
 #define T76_STAGE3_UPDATER_STATE_ACTIVE 1u
 #define T76_STAGE3_BOOTLOADER_SRAM_START 0x20000000u
 #define T76_STAGE3_BOOTLOADER_SRAM_END 0x20082000u
 #define T76_STAGE3_BOOTLOADER_SCB_VTOR (*(volatile uint32_t *)0xe000ed08u)
+#define T76_STAGE3_UPDATER_BOS_WEBUSB_VENDOR_REQUEST 1u
 #define T76_STAGE3_UPDATER_VENDOR_REQUEST_MICROSOFT 2u
 #define T76_STAGE3_UPDATER_MS_OS_20_DESC_INDEX 7u
-#define T76_STAGE3_UPDATER_BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
-#define T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN 166u
+#define T76_STAGE3_UPDATER_BOS_TOTAL_LEN (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN 478u
 #define T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_DESC_LEN 156u
 #define T76_STAGE3_UPDATER_MS_OS_20_VENDOR_PROPERTY_LEN 128u
+#define T76_STAGE3_UPDATER_RESET_GUID "{bc7398c1-73cd-4cb7-98b8-913a8fca7bf6}"
+#define T76_STAGE3_UPDATER_VENDOR_GUID "{06b63d79-4f6b-4d9c-9918-32b9c1d6f7b2}"
+#define T76_STAGE3_UPDATER_WEBUSB_URL "t76.org/drpd"
 
 #define T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_SUBSET(_itfnum, _guid_literal) \
     U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), _itfnum, 0, U16_TO_U8S_LE(T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_DESC_LEN), \
@@ -106,6 +130,19 @@ static uint32_t update_running_crc32;
 static uint32_t update_next_offset;
 static uint32_t update_state;
 static uint8_t const desc_ms_os_20[T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN];
+static uint8_t reset_interface_number;
+static uint8_t winusb_interface_number;
+static uint8_t winusb_ep_out_address;
+static uint8_t winusb_ep_in_address;
+static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_out_buffer[CFG_TUD_VENDOR_RX_BUFSIZE];
+static CFG_TUD_MEM_ALIGN uint8_t winusb_ep_in_buffer[CFG_TUD_VENDOR_TX_BUFSIZE];
+
+static const tusb_desc_webusb_url_t desc_url = {
+    .bLength = 3 + sizeof(T76_STAGE3_UPDATER_WEBUSB_URL) - 1,
+    .bDescriptorType = 3,
+    .bScheme = 1,
+    .url = T76_STAGE3_UPDATER_WEBUSB_URL,
+};
 
 static uint32_t read_u32_le(const uint8_t *data) {
     return (uint32_t)data[0] | ((uint32_t)data[1] << 8u) | ((uint32_t)data[2] << 16u) | ((uint32_t)data[3] << 24u);
@@ -194,8 +231,14 @@ static void send_frame(uint8_t type, uint8_t tag, const uint8_t *payload, uint32
     if (payload_len > 0u) {
         memcpy(&response_frame[T76_WINUSB_FRAME_HEADER_SIZE], payload, payload_len);
     }
-    tud_vendor_n_write(T76_STAGE3_UPDATER_WINUSB_ITF, response_frame, T76_WINUSB_FRAME_HEADER_SIZE + payload_len);
-    tud_vendor_n_flush(T76_STAGE3_UPDATER_WINUSB_ITF);
+    if (winusb_ep_in_address == 0u) {
+        return;
+    }
+    while (usbd_edpt_busy(0, winusb_ep_in_address)) {
+        tud_task();
+    }
+    memcpy(winusb_ep_in_buffer, response_frame, T76_WINUSB_FRAME_HEADER_SIZE + payload_len);
+    usbd_edpt_xfer(0, winusb_ep_in_address, winusb_ep_in_buffer, T76_WINUSB_FRAME_HEADER_SIZE + payload_len);
 }
 
 static void send_error(uint8_t tag, const char *message) {
@@ -354,8 +397,7 @@ static void handle_frame(const uint8_t *frame, uint32_t frame_len) {
     }
 }
 
-void tud_vendor_rx_cb(uint8_t itf, uint8_t const *buffer, uint16_t bufsize) {
-    (void)itf;
+static void stage3_winusb_rx(const uint8_t *buffer, uint16_t bufsize) {
     if (rx_frame_len + bufsize > sizeof(rx_frame)) {
         rx_frame_len = 0u;
         return;
@@ -379,6 +421,12 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const *buffer, uint16_t bufsize) {
         }
         rx_frame_len = 0u;
     }
+}
+
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const *buffer, uint16_t bufsize) {
+    (void)itf;
+    (void)buffer;
+    (void)bufsize;
     tud_vendor_n_read_flush(itf);
 }
 
@@ -386,14 +434,136 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     if (stage != CONTROL_STAGE_SETUP) {
         return true;
     }
-    if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR &&
-        request->bRequest == T76_STAGE3_UPDATER_VENDOR_REQUEST_MICROSOFT &&
+    if (request->bmRequestType_bit.type != TUSB_REQ_TYPE_VENDOR) {
+        return false;
+    }
+    if (request->bRequest == T76_STAGE3_UPDATER_BOS_WEBUSB_VENDOR_REQUEST) {
+        return tud_control_xfer(rhport, request, (void *)(uintptr_t)&desc_url, desc_url.bLength);
+    }
+    if (request->bRequest == T76_STAGE3_UPDATER_VENDOR_REQUEST_MICROSOFT &&
         request->wIndex == T76_STAGE3_UPDATER_MS_OS_20_DESC_INDEX) {
         uint16_t total_len;
         memcpy(&total_len, desc_ms_os_20 + 8, sizeof(total_len));
         return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, total_len);
     }
     return false;
+}
+
+static void resetd_init(void) {
+}
+
+static void resetd_reset(uint8_t rhport) {
+    (void)rhport;
+    reset_interface_number = 0u;
+    winusb_interface_number = 0u;
+    winusb_ep_out_address = 0u;
+    winusb_ep_in_address = 0u;
+}
+
+static uint16_t resetd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+    TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass, 0);
+
+    if (itf_desc->bInterfaceSubClass == T76_STAGE3_UPDATER_RESET_SUBCLASS &&
+        itf_desc->bInterfaceProtocol == T76_STAGE3_UPDATER_RESET_PROTOCOL) {
+        uint16_t const drv_len = sizeof(tusb_desc_interface_t);
+        TU_VERIFY(max_len >= drv_len, 0);
+        reset_interface_number = itf_desc->bInterfaceNumber;
+        return drv_len;
+    }
+
+    if (itf_desc->bInterfaceSubClass == T76_STAGE3_UPDATER_WINUSB_SUBCLASS &&
+        itf_desc->bInterfaceProtocol == T76_STAGE3_UPDATER_WINUSB_PROTOCOL) {
+        TU_VERIFY(itf_desc->bNumEndpoints == 2, 0);
+
+        const uint8_t *p_desc = tu_desc_next(itf_desc);
+        const uint8_t *desc_end = ((uint8_t const *)itf_desc) + max_len;
+        uint8_t found_ep = 0u;
+
+        winusb_interface_number = itf_desc->bInterfaceNumber;
+
+        while ((found_ep < itf_desc->bNumEndpoints) && (p_desc < desc_end)) {
+            while ((p_desc < desc_end) && (tu_desc_type(p_desc) != TUSB_DESC_ENDPOINT)) {
+                p_desc = tu_desc_next(p_desc);
+            }
+
+            TU_VERIFY(p_desc < desc_end, 0);
+
+            tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *)p_desc;
+            TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
+
+            if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_OUT) {
+                winusb_ep_out_address = desc_ep->bEndpointAddress;
+                TU_ASSERT(usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer)), 0);
+            } else {
+                winusb_ep_in_address = desc_ep->bEndpointAddress;
+            }
+
+            found_ep++;
+            p_desc = tu_desc_next(p_desc);
+        }
+
+        TU_VERIFY(found_ep == itf_desc->bNumEndpoints, 0);
+        return (uint16_t)((uintptr_t)p_desc - (uintptr_t)itf_desc);
+    }
+
+    return 0;
+}
+
+static bool resetd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request) {
+    (void)rhport;
+    if (request->wIndex == reset_interface_number) {
+        if (stage != CONTROL_STAGE_SETUP) {
+            return true;
+        }
+        return false;
+    }
+
+    if (request->wIndex == winusb_interface_number) {
+        if (stage != CONTROL_STAGE_SETUP) {
+            return true;
+        }
+        if (request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR &&
+            request->bRequest == T76_STAGE3_UPDATER_VENDOR_REQUEST_MICROSOFT &&
+            request->wIndex == T76_STAGE3_UPDATER_MS_OS_20_DESC_INDEX) {
+            uint16_t total_len;
+            memcpy(&total_len, desc_ms_os_20 + 8, sizeof(total_len));
+            return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, total_len);
+        }
+        return false;
+    }
+
+    return false;
+}
+
+static bool resetd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+    (void)result;
+
+    if (ep_addr == winusb_ep_out_address) {
+        if (xferred_bytes > 0u) {
+            stage3_winusb_rx(winusb_ep_out_buffer, (uint16_t)xferred_bytes);
+        }
+        return usbd_edpt_xfer(rhport, winusb_ep_out_address, winusb_ep_out_buffer, sizeof(winusb_ep_out_buffer));
+    }
+
+    if (ep_addr == winusb_ep_in_address) {
+        return true;
+    }
+
+    return true;
+}
+
+static usbd_class_driver_t const reset_driver = {
+    .init = resetd_init,
+    .reset = resetd_reset,
+    .open = resetd_open,
+    .control_xfer_cb = resetd_control_xfer_cb,
+    .xfer_cb = resetd_xfer_cb,
+    .sof = NULL,
+};
+
+usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
+    *driver_count = 1;
+    return &reset_driver;
 }
 
 static tusb_desc_device_t const desc_device = {
@@ -418,7 +588,8 @@ uint8_t const *tud_descriptor_device_cb(void) {
 }
 
 static uint8_t const desc_bos[] = {
-    TUD_BOS_DESCRIPTOR(T76_STAGE3_UPDATER_BOS_TOTAL_LEN, 1),
+    TUD_BOS_DESCRIPTOR(T76_STAGE3_UPDATER_BOS_TOTAL_LEN, 2),
+    TUD_BOS_WEBUSB_DESCRIPTOR(T76_STAGE3_UPDATER_BOS_WEBUSB_VENDOR_REQUEST, 1),
     TUD_BOS_MS_OS_20_DESCRIPTOR(T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN, T76_STAGE3_UPDATER_VENDOR_REQUEST_MICROSOFT),
 };
 
@@ -430,22 +601,33 @@ uint8_t const *tud_descriptor_bos_cb(void) {
 
 static uint8_t const desc_ms_os_20[T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN] = {
     U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR), U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN),
+    T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_SUBSET(T76_STAGE3_UPDATER_RESET_ITF, T76_STAGE3_UPDATER_RESET_GUID),
+    T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_SUBSET(T76_STAGE3_UPDATER_VENDOR_ITF, T76_STAGE3_UPDATER_VENDOR_GUID),
     T76_STAGE3_UPDATER_MS_OS_20_FUNCTION_SUBSET(T76_STAGE3_UPDATER_WINUSB_ITF, T76_UPDATER_WINUSB_GUID),
 };
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == T76_STAGE3_UPDATER_MS_OS_20_DESC_LEN, "Incorrect updater MS OS 2.0 size");
+
+#define T76_STAGE3_UPDATER_RESET_DESCRIPTOR(_itfnum, _stridx) \
+    9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, T76_STAGE3_UPDATER_RESET_SUBCLASS, T76_STAGE3_UPDATER_RESET_PROTOCOL, _stridx
 
 #define T76_STAGE3_UPDATER_WINUSB_DESCRIPTOR(_itfnum, _stridx, _epout, _epin, _epsize) \
     9, TUSB_DESC_INTERFACE, _itfnum, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, T76_STAGE3_UPDATER_WINUSB_SUBCLASS, T76_STAGE3_UPDATER_WINUSB_PROTOCOL, _stridx, \
     7, TUSB_DESC_ENDPOINT, _epout, TUSB_XFER_BULK, TU_U16_LOW(_epsize), TU_U16_HIGH(_epsize), 0, \
     7, TUSB_DESC_ENDPOINT, _epin, TUSB_XFER_BULK, TU_U16_LOW(_epsize), TU_U16_HIGH(_epsize), 0
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + T76_STAGE3_UPDATER_WINUSB_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + T76_STAGE3_UPDATER_RESET_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_USBTMC_IF_DESCRIPTOR_LEN + TUD_USBTMC_BULK_DESCRIPTORS_LEN + TUD_USBTMC_INT_DESCRIPTOR_LEN + T76_STAGE3_UPDATER_WINUSB_DESC_LEN)
 static uint8_t const desc_configuration[] = {
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, CONFIG_TOTAL_LEN, 0x00, 400),
+    TUD_CONFIG_DESCRIPTOR(1, 6, 0, CONFIG_TOTAL_LEN, 0x00, 400),
+    TUD_CDC_DESCRIPTOR(T76_STAGE3_UPDATER_CDC_ITF, 4, T76_STAGE3_UPDATER_CDC_EP_NOTIF, 8, T76_STAGE3_UPDATER_CDC_EP_OUT, T76_STAGE3_UPDATER_CDC_EP_IN, T76_STAGE3_UPDATER_ITF_BUFFER_SIZE),
+    T76_STAGE3_UPDATER_RESET_DESCRIPTOR(T76_STAGE3_UPDATER_RESET_ITF, 5),
+    TUD_VENDOR_DESCRIPTOR(T76_STAGE3_UPDATER_VENDOR_ITF, 6, T76_STAGE3_UPDATER_VENDOR_EP_OUT, T76_STAGE3_UPDATER_VENDOR_EP_IN, T76_STAGE3_UPDATER_ITF_BUFFER_SIZE),
+    TUD_USBTMC_IF_DESCRIPTOR(T76_STAGE3_UPDATER_USBTMC_ITF, 3, 7, TUD_USBTMC_PROTOCOL_USB488),
+    TUD_USBTMC_BULK_DESCRIPTORS(T76_STAGE3_UPDATER_USBTMC_EP_OUT, T76_STAGE3_UPDATER_USBTMC_EP_IN, T76_STAGE3_UPDATER_ITF_BUFFER_SIZE),
+    TUD_USBTMC_INT_DESCRIPTOR(T76_STAGE3_UPDATER_USBTMC_EP_INT, 64, 0x1),
     T76_STAGE3_UPDATER_WINUSB_DESCRIPTOR(
         T76_STAGE3_UPDATER_WINUSB_ITF,
-        4,
+        8,
         T76_STAGE3_UPDATER_WINUSB_EP_OUT,
         T76_STAGE3_UPDATER_WINUSB_EP_IN,
         T76_STAGE3_UPDATER_WINUSB_EP_SIZE),
@@ -461,7 +643,11 @@ enum {
     STRING_MANUFACTURER = 1,
     STRING_PRODUCT = 2,
     STRING_SERIAL = 3,
-    STRING_WINUSB = 4,
+    STRING_CDC = 4,
+    STRING_RESET = 5,
+    STRING_VENDOR = 6,
+    STRING_USBTMC = 7,
+    STRING_WINUSB = 8,
 };
 
 static uint16_t desc_string[32];
@@ -486,6 +672,18 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
                 pico_get_unique_board_id_string(serial, sizeof(serial));
                 value = serial;
                 break;
+            case STRING_CDC:
+                value = "Board CDC";
+                break;
+            case STRING_RESET:
+                value = "Reset";
+                break;
+            case STRING_VENDOR:
+                value = "Vendor";
+                break;
+            case STRING_USBTMC:
+                value = "USBTMC";
+                break;
             case STRING_WINUSB:
                 value = "WinUSB";
                 break;
@@ -502,6 +700,114 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
     }
     desc_string[0] = (uint16_t)((TUSB_DESC_STRING << 8u) | (2u * count + 2u));
     return desc_string;
+}
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+    (void)itf;
+    (void)dtr;
+    (void)rts;
+}
+
+void tud_cdc_rx_cb(uint8_t itf) {
+    uint8_t buffer[64];
+    while (tud_cdc_n_available(itf) != 0u) {
+        uint32_t count = tud_cdc_n_read(itf, buffer, sizeof(buffer));
+        if (count == 0u) {
+            break;
+        }
+    }
+}
+
+usbtmc_response_capabilities_488_t const *tud_usbtmc_get_capabilities_cb(void) {
+    static const usbtmc_response_capabilities_488_t capabilities = {
+        .USBTMC_status = USBTMC_STATUS_SUCCESS,
+        .bcdUSBTMC = 0x0100,
+        .bcdUSB488 = 0x0100,
+    };
+    return &capabilities;
+}
+
+void tud_usbtmc_open_cb(uint8_t interface_id) {
+    (void)interface_id;
+}
+
+bool tud_usbtmc_msg_trigger_cb(usbtmc_msg_generic_t *msg) {
+    (void)msg;
+    return false;
+}
+
+bool tud_usbtmc_msgBulkOut_start_cb(usbtmc_msg_request_dev_dep_out const *msgHeader) {
+    (void)msgHeader;
+    return true;
+}
+
+bool tud_usbtmc_msg_data_cb(void *data, size_t len, bool transfer_complete) {
+    (void)data;
+    (void)len;
+    return transfer_complete;
+}
+
+bool tud_usbtmc_msgBulkIn_complete_cb(void) {
+    return true;
+}
+
+bool tud_usbtmc_msgBulkIn_request_cb(usbtmc_msg_request_dev_dep_in const *request) {
+    (void)request;
+    return tud_usbtmc_transmit_dev_msg_data(NULL, 0u, true, false);
+}
+
+bool tud_usbtmc_initiate_clear_cb(uint8_t *tmcResult) {
+    *tmcResult = USBTMC_STATUS_SUCCESS;
+    return true;
+}
+
+bool tud_usbtmc_check_clear_cb(usbtmc_get_clear_status_rsp_t *rsp) {
+    rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
+    rsp->bmClear.BulkInFifoBytes = 0u;
+    return true;
+}
+
+bool tud_usbtmc_initiate_abort_bulk_in_cb(uint8_t *tmcResult) {
+    *tmcResult = USBTMC_STATUS_SUCCESS;
+    return true;
+}
+
+bool tud_usbtmc_check_abort_bulk_in_cb(usbtmc_check_abort_bulk_rsp_t *rsp) {
+    rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
+    rsp->NBYTES_RXD_TXD = 0u;
+    return true;
+}
+
+bool tud_usbtmc_initiate_abort_bulk_out_cb(uint8_t *tmcResult) {
+    *tmcResult = USBTMC_STATUS_SUCCESS;
+    return true;
+}
+
+bool tud_usbtmc_check_abort_bulk_out_cb(usbtmc_check_abort_bulk_rsp_t *rsp) {
+    rsp->USBTMC_status = USBTMC_STATUS_SUCCESS;
+    rsp->NBYTES_RXD_TXD = 0u;
+    return true;
+}
+
+bool tud_usbtmc_notification_complete_cb(void) {
+    return true;
+}
+
+void tud_usbtmc_bulkIn_clearFeature_cb(void) {
+}
+
+void tud_usbtmc_bulkOut_clearFeature_cb(void) {
+}
+
+uint8_t tud_usbtmc_get_stb_cb(uint8_t *tmcResult) {
+    *tmcResult = USBTMC_STATUS_SUCCESS;
+    return 0u;
+}
+
+bool tud_usbtmc_indicator_pulse_cb(tusb_control_request_t const *msg, uint8_t *tmcResult) {
+    (void)msg;
+    *tmcResult = USBTMC_STATUS_SUCCESS;
+    return true;
 }
 
 int main(void) {
