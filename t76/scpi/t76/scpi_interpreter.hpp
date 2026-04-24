@@ -80,6 +80,13 @@ namespace T76::SCPI {
     template<typename TargetT>
     class Interpreter {
     public:
+        static constexpr int SCPIErrorDataTypeError = -104;
+        static constexpr int SCPIErrorParameterNotAllowed = -108;
+        static constexpr int SCPIErrorMissingParameter = -109;
+        static constexpr int SCPIErrorUndefinedHeader = -113;
+        static constexpr int SCPIErrorInvalidBlockData = -161;
+        static constexpr int SCPIErrorTooMuchData = -223;
+
         std::queue<std::string> errorQueue; // Queue to store error messages.
 
         /**
@@ -321,7 +328,7 @@ namespace T76::SCPI {
                     if (nextNode) {
                         _currentNode = nextNode;
                     } else {
-                        addError(102, "Unknown command");
+                        addError(SCPIErrorUndefinedHeader, "Undefined header");
                         _status = InterpreterStatus::Error;
                     }
                 } 
@@ -345,7 +352,7 @@ namespace T76::SCPI {
                         if (_parameters.size() >= _maxParameterCount) {
                             // If we exceed the number of parameters, set the status to error
                             _status = InterpreterStatus::Error;
-                            addError(100, "Too many parameters");
+                            addError(SCPIErrorParameterNotAllowed, "Parameter not allowed");
                             return;
                         }
 
@@ -372,7 +379,7 @@ namespace T76::SCPI {
                     } else {
                         // Buffer overflow, set error status
                         _status = InterpreterStatus::Error;
-                        addError(101, "Parameter too long");
+                        addError(SCPIErrorTooMuchData, "Too much data");
                     }
                 }
 
@@ -386,7 +393,7 @@ namespace T76::SCPI {
                     _status = InterpreterStatus::ParsingABDSize;
                 } else {
                     // Invalid size length digit
-                    addError(103, "Invalid ABD size length digit");
+                    addError(SCPIErrorInvalidBlockData, "Invalid block data");
                     _status = InterpreterStatus::Error;
                 }
                 break;
@@ -400,10 +407,10 @@ namespace T76::SCPI {
                     if (_abdSizeLength == 0) {
                         // All size digits read, validate size and start data parsing
                         if (_abdExpectedSize == 0) {
-                            addError(103, "ABD data size cannot be zero");
+                            addError(SCPIErrorInvalidBlockData, "Invalid block data");
                             _status = InterpreterStatus::Error;
                         } else if (_abdExpectedSize > _abdMaxSize) {
-                            addError(103, "ABD data size too large");
+                            addError(SCPIErrorTooMuchData, "Too much data");
                             _status = InterpreterStatus::Error;
                         } else {
                             // Initialize data buffer and start reading data
@@ -415,7 +422,7 @@ namespace T76::SCPI {
                     }
                 } else {
                     // Invalid size digit
-                    addError(103, "Invalid ABD size digit");
+                    addError(SCPIErrorInvalidBlockData, "Invalid block data");
                     _status = InterpreterStatus::Error;
                 }
                 break;
@@ -487,14 +494,14 @@ namespace T76::SCPI {
             std::vector<ParameterValue> parsedParameters;
 
             if (_parameters.size() > command.parameterCount) {
-                addError(100, "Too many parameters. Expected " + std::to_string(command.parameterCount) + ", got " + std::to_string(_parameters.size()));
+                addError(SCPIErrorParameterNotAllowed, "Parameter not allowed");
 
                 _resetState();
                 return;
             } 
             
             if (_parameters.size() < command.parameterCount) {
-                addError(100, "Too few parameters");
+                addError(SCPIErrorMissingParameter, "Missing parameter");
                 _resetState();
                 return;
             }
@@ -506,7 +513,7 @@ namespace T76::SCPI {
                     auto value = _parseParameter(command.parameterDescriptors[parameterIndex++], param);
 
                     if (value.type == ParameterType::Invalid) {
-                        addError(103, "Invalid parameter #" + std::to_string(parameterIndex));
+                        addError(SCPIErrorDataTypeError, "Data type error");
                         _resetState();
                         return;
                     }
@@ -520,7 +527,7 @@ namespace T76::SCPI {
         } else if (_currentNode == &_trie) {
             // No command was entered (empty input), do nothing
         } else {
-            addError(102, "Unknown command");
+            addError(SCPIErrorUndefinedHeader, "Undefined header");
         }
 
         // Reset the state for the next command
@@ -751,7 +758,7 @@ namespace T76::SCPI {
     void Interpreter<TargetT>::_completeABDParameter() {
         // Ensure we don't exceed maximum parameter count
         if (_parameters.size() >= _maxParameterCount) {
-            addError(100, "Too many parameters");
+            addError(SCPIErrorParameterNotAllowed, "Parameter not allowed");
             _status = InterpreterStatus::Error;
             return;
         }
