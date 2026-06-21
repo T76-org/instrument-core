@@ -136,6 +136,10 @@ bool Interface::sendUSBTMCSRQInterrupt(const uint8_t srq) {
     return _trySendUSBTMCSRQInterrupt();
 }
 
+bool Interface::mounted() const {
+    return tud_mounted();
+}
+
 bool Interface::_trySendUSBTMCSRQInterrupt() {
     if (!_usbtmcSRQPending.load(std::memory_order_acquire)) {
         return false;
