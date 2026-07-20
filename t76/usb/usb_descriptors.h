@@ -62,4 +62,20 @@ extern const tusb_desc_webusb_url_t desc_url;
 extern uint8_t reset_interface_number;
 extern uint8_t winusb_interface_number;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * Overrides the USB product string returned by the descriptor callback.
+ *
+ * The caller owns the string storage, which must remain valid while USB is active.
+ * Passing NULL or an empty string restores the configured product string.
+ */
+void t76_usb_set_product_string_override(const char *product_string);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* USB_DESCRIPTORS_H_ */

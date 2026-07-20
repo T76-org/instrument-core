@@ -124,7 +124,12 @@ char const* string_desc_arr [] = {
   "WinUSB",                        // 8: WinUSB Interface
 };
 
+static const char *_product_string_override = NULL;
 static uint16_t _desc_str[32];
+
+void t76_usb_set_product_string_override(const char *product_string) {
+  _product_string_override = product_string;
+}
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
@@ -154,6 +159,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
       pico_get_unique_board_id_string(buf, sizeof(buf));
 
       str = buf;
+    } else if (index == PRODUCT && _product_string_override != NULL && _product_string_override[0] != '\0') {
+      str = (char *) _product_string_override;
     } else {
       str = (char*) string_desc_arr[index];
     }
