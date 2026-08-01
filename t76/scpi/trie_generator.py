@@ -38,7 +38,7 @@ class SCPIDefinitionParameter:
 
     def validate(self) -> None:
         """Validate the parameter to ensure it meets the SCPI definition requirements."""
-        if self.type not in ['string', 'number', 'boolean', 'enum', 'arbitrarydata']:
+        if self.type not in ['string', 'string_or_number', 'number', 'boolean', 'enum', 'arbitrarydata']:
             raise ValueError(
                 f"Invalid type '{self.type}' for parameter '{self.name}'"
             )
@@ -520,6 +520,7 @@ class SCPITrie:
                     # Map parameter types to C++ enum values
                     type_mapping = {
                         'string': 'String',
+                        'string_or_number': 'StringOrNumber',
                         'number': 'Number',
                         'boolean': 'Boolean',
                         'enum': 'Enum',

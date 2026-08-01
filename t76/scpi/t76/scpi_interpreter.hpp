@@ -569,6 +569,10 @@ namespace T76::SCPI {
             case ParameterType::String:
                 return _parseString(input);
 
+            case ParameterType::StringOrNumber:
+                return !input.empty() && input.front() == '"'
+                    ? _parseString(input) : _parseNumber(input);
+
             case ParameterType::Number:
                 return _parseNumber(input);
 
