@@ -34,6 +34,7 @@ class SCPIDefinitionParameter:
     description: str
     default: Optional[Any] = None
     choices: Optional[List[str]] = None
+    optional: bool = False
 
     def validate(self) -> None:
         """Validate the parameter to ensure it meets the SCPI definition requirements."""
@@ -115,7 +116,8 @@ class SCPIDefinitionParameter:
             type=data['type'],
             description=data['description'],
             default=data.get('default'),
-            choices=data.get('choices')
+            choices=data.get('choices'),
+            optional=data.get('optional', data.get('default') is not None)
         )
 
 
@@ -149,8 +151,13 @@ class SCPIDefinitionCommand:
             raise ValueError("Command handler must be a string if provided")
 
         if self.parameters:
+            saw_optional = False
             for param in self.parameters:
                 param.validate()
+                if param.optional:
+                    saw_optional = True
+                elif saw_optional:
+                    raise ValueError("Optional parameters must be terminal")
 
     def __str__(self) -> str:
         """String representation of the command for debugging."""
@@ -569,6 +576,8 @@ class SCPITrie:
 
             # Count parameters
             param_count = len(command.parameters) if command.parameters else 0
+            required_param_count = sum(
+                1 for parameter in (command.parameters or []) if not parameter.optional)
             max_param_count = max(max_param_count, param_count)
 
             # Generate parameter descriptor reference
@@ -577,7 +586,7 @@ class SCPITrie:
             else:
                 param_ref = "nullptr"
 
-            code += f"        {{ {handler_ref}, {param_count}, {param_ref} }}, // {command.syntax}\n"
+            code += f"        {{ {handler_ref}, {param_count}, {required_param_count}, {param_ref} }}, // {command.syntax}\n"
 
         code += "    };\n\n"
 

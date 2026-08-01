@@ -33,6 +33,7 @@ namespace T76::SCPI {
     struct Command {
         CommandHandler<TargetT> handler;  // The function to call when the command is executed.
         uint8_t parameterCount; // The number of parameters for the command.
+        uint8_t requiredParameterCount; // Minimum number of parameters for the command.
         const ParameterDescriptor *parameterDescriptors; // Pointer to parameter descriptors
     };
 
