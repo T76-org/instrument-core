@@ -41,6 +41,16 @@ void test_parameter_count_limit() {
     // Test 3: Command with exactly the maximum number of parameters
     std::cout << "\nTest 3: Exactly maximum parameter count" << std::endl;
     test_command("TEST:OPTIONAL:MULTIPLE 42 \"param1\" RED", "TEST:OPTIONAL:MULTIPLE executed");
+
+    // Test 4: Trailing optional parameters may be omitted independently.
+    test_command("TEST:OPTIONAL:SINGLE 42", "optional: NOT_PROVIDED");
+    test_command("TEST:OPTIONAL:MULTIPLE 42", "optional1: NOT_PROVIDED");
+    test_command("TEST:OPTIONAL:MULTIPLE 42 \"param1\"", "optional2: NOT_PROVIDED");
+
+    // Test 5: Required prefix remains mandatory.
+    test_command("TEST:OPTIONAL:SINGLE", "", "109,\"Missing parameter\"");
+    test_command("TEST:OPTIONAL:SINGLE 42 \"value\" \"extra\"", "",
+        "108,\"Parameter not allowed\"");
 }
 
 int main() {

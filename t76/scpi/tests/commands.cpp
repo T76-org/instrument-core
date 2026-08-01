@@ -917,28 +917,28 @@ namespace T76::SCPI {
     // Command handlers and parameters
     template<>
     const Command<T76::SCPI::ConcreteInterpreter> T76::SCPI::Interpreter<T76::SCPI::ConcreteInterpreter>::_commands[] = {
-        { &T76::SCPI::ConcreteInterpreter::_testSimple, 0, nullptr }, // TEST:SIMPLE
-        { &T76::SCPI::ConcreteInterpreter::_queryTestSimple, 0, nullptr }, // TEST:SIMPLE?
-        { &T76::SCPI::ConcreteInterpreter::_testMixedCase, 0, nullptr }, // TEST:COMmand:OPTional:SYNtax
-        { &T76::SCPI::ConcreteInterpreter::_testABDSimple, 1, command_3_params }, // TEST:ABD:SIMPLE
-        { &T76::SCPI::ConcreteInterpreter::_testNumber, 1, command_4_params }, // TEST:NUMBER
-        { &T76::SCPI::ConcreteInterpreter::_testString, 1, command_5_params }, // TEST:STRING
-        { &T76::SCPI::ConcreteInterpreter::_testBoolean, 1, command_6_params }, // TEST:BOOLEAN
-        { &T76::SCPI::ConcreteInterpreter::_testEnum, 1, command_7_params }, // TEST:ENUM
-        { &T76::SCPI::ConcreteInterpreter::_testMultiTwo, 2, command_8_params }, // TEST:MULTI:TWO
-        { &T76::SCPI::ConcreteInterpreter::_testOptionalSingle, 2, command_9_params }, // TEST:OPTIONAL:SINGLE
-        { &T76::SCPI::ConcreteInterpreter::_testOptionalMultiple, 3, command_10_params }, // TEST:OPTIONAL:MULTIPLE
-        { &T76::SCPI::ConcreteInterpreter::_testInteger, 1, command_11_params }, // TEST:NUMERIC:INTEGER
-        { &T76::SCPI::ConcreteInterpreter::_testFloat, 1, command_12_params }, // TEST:NUMERIC:FLOAT
-        { &T76::SCPI::ConcreteInterpreter::_testRange, 2, command_13_params }, // TEST:NUMERIC:RANGE
-        { &T76::SCPI::ConcreteInterpreter::_testQuotedString, 1, command_14_params }, // TEST:STRING:QUOTED
-        { &T76::SCPI::ConcreteInterpreter::_testEnumMixed, 1, command_15_params }, // TEST:ENUM:MIXED
-        { &T76::SCPI::ConcreteInterpreter::_testEnumNumeric, 1, command_16_params }, // TEST:ENUM:NUMERIC
-        { &T76::SCPI::ConcreteInterpreter::_queryTestParam, 1, command_17_params }, // TEST:QUERY:PARAM?
-        { &T76::SCPI::ConcreteInterpreter::_queryTestMulti, 2, command_18_params }, // TEST:QUERY:MULTI?
-        { &T76::SCPI::ConcreteInterpreter::_testErrorSimulate, 1, command_19_params }, // TEST:ERROR:SIMULATE
-        { &T76::SCPI::ConcreteInterpreter::_testErrorInvalid, 0, nullptr }, // TEST:ERROR:INVALID
-        { &T76::SCPI::ConcreteInterpreter::_querySystemError, 0, nullptr }, // SYSTEM:ERROR?
+        { &T76::SCPI::ConcreteInterpreter::_testSimple, 0, 0, nullptr }, // TEST:SIMPLE
+        { &T76::SCPI::ConcreteInterpreter::_queryTestSimple, 0, 0, nullptr }, // TEST:SIMPLE?
+        { &T76::SCPI::ConcreteInterpreter::_testMixedCase, 0, 0, nullptr }, // TEST:COMmand:OPTional:SYNtax
+        { &T76::SCPI::ConcreteInterpreter::_testABDSimple, 1, 1, command_3_params }, // TEST:ABD:SIMPLE
+        { &T76::SCPI::ConcreteInterpreter::_testNumber, 1, 1, command_4_params }, // TEST:NUMBER
+        { &T76::SCPI::ConcreteInterpreter::_testString, 1, 1, command_5_params }, // TEST:STRING
+        { &T76::SCPI::ConcreteInterpreter::_testBoolean, 1, 1, command_6_params }, // TEST:BOOLEAN
+        { &T76::SCPI::ConcreteInterpreter::_testEnum, 1, 1, command_7_params }, // TEST:ENUM
+        { &T76::SCPI::ConcreteInterpreter::_testMultiTwo, 2, 2, command_8_params }, // TEST:MULTI:TWO
+        { &T76::SCPI::ConcreteInterpreter::_testOptionalSingle, 2, 1, command_9_params }, // TEST:OPTIONAL:SINGLE
+        { &T76::SCPI::ConcreteInterpreter::_testOptionalMultiple, 3, 1, command_10_params }, // TEST:OPTIONAL:MULTIPLE
+        { &T76::SCPI::ConcreteInterpreter::_testInteger, 1, 1, command_11_params }, // TEST:NUMERIC:INTEGER
+        { &T76::SCPI::ConcreteInterpreter::_testFloat, 1, 1, command_12_params }, // TEST:NUMERIC:FLOAT
+        { &T76::SCPI::ConcreteInterpreter::_testRange, 2, 2, command_13_params }, // TEST:NUMERIC:RANGE
+        { &T76::SCPI::ConcreteInterpreter::_testQuotedString, 1, 1, command_14_params }, // TEST:STRING:QUOTED
+        { &T76::SCPI::ConcreteInterpreter::_testEnumMixed, 1, 1, command_15_params }, // TEST:ENUM:MIXED
+        { &T76::SCPI::ConcreteInterpreter::_testEnumNumeric, 1, 1, command_16_params }, // TEST:ENUM:NUMERIC
+        { &T76::SCPI::ConcreteInterpreter::_queryTestParam, 1, 1, command_17_params }, // TEST:QUERY:PARAM?
+        { &T76::SCPI::ConcreteInterpreter::_queryTestMulti, 2, 2, command_18_params }, // TEST:QUERY:MULTI?
+        { &T76::SCPI::ConcreteInterpreter::_testErrorSimulate, 1, 1, command_19_params }, // TEST:ERROR:SIMULATE
+        { &T76::SCPI::ConcreteInterpreter::_testErrorInvalid, 0, 0, nullptr }, // TEST:ERROR:INVALID
+        { &T76::SCPI::ConcreteInterpreter::_querySystemError, 0, 0, nullptr }, // SYSTEM:ERROR?
     };
 
     template<>

@@ -254,8 +254,8 @@ namespace T76::SCPI {
     // Template implementation
     template<typename TargetT>
     Interpreter<TargetT>::Interpreter(TargetT &target, size_t abdMaxSize) :
-          _target(target),
-          _abdMaxSize(abdMaxSize) {
+          _abdMaxSize(abdMaxSize),
+          _target(target) {
         _resetState();
     }
 
@@ -345,7 +345,7 @@ namespace T76::SCPI {
                 }
 
                 // If the byte is space or newline, attempt to parse the current parameter
-                if (byte == ' ' || byte == '\t' || byte == '\n' || byte == '\r') {
+                if (byte == ' ' || byte == '\t' || byte == ',' || byte == '\n' || byte == '\r') {
                     // If buffer is empty, we can ignore the byte and continue
                     if (_bufferIndex != 0) {
                         // Ensure that we are not exceeding the maximum number of parameters
@@ -500,7 +500,7 @@ namespace T76::SCPI {
                 return;
             } 
             
-            if (_parameters.size() < command.parameterCount) {
+            if (_parameters.size() < command.requiredParameterCount) {
                 addError(SCPIErrorMissingParameter, "Missing parameter");
                 _resetState();
                 return;
