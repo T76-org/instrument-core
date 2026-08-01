@@ -31,6 +31,7 @@ namespace T76::SCPI {
      */
     enum class ParameterType : uint8_t {
         String,
+        StringOrNumber,
         Number,
         Boolean,
         Enum,
