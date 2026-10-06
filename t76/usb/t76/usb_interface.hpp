@@ -364,6 +364,14 @@ namespace T76::Core::USB {
         void sendWinUSBBulkData(const std::vector<uint8_t> &data);
 
         /**
+         * @brief Queue owned data for the WinUSB-compatible bulk IN endpoint.
+         *
+         * @param data Payload whose storage is transferred to the USB dispatch
+         *             task without making another full-size copy.
+         */
+        void sendWinUSBBulkData(std::vector<uint8_t> &&data);
+
+        /**
          * @brief Send USBTMC bulk data to the USB host.
          * @param data The data to be sent. The function takes ownership of the data
          *            and will copy it to the USBTMC buffer asynchronously.

@@ -9,6 +9,8 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include <utility>
+
 #include "callbacks.hpp"
 #include "interface_interrupt.hpp"
 
@@ -103,6 +105,17 @@ void Interface::sendWinUSBBulkData(const std::vector<uint8_t> &data) {
 
     item->type = DispatchType::SendWinUSBBulkData;
     item->data = data;
+
+    if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
+        delete item;
+    }
+}
+
+void Interface::sendWinUSBBulkData(std::vector<uint8_t> &&data) {
+    DispatchItem *item = new DispatchItem;
+
+    item->type = DispatchType::SendWinUSBBulkData;
+    item->data = std::move(data);
 
     if (xQueueSend(_dispatchQueue, &item, portMAX_DELAY) != pdTRUE) {
         delete item;
